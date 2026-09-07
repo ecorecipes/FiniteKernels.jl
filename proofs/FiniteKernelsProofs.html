@@ -1,0 +1,1218 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="author" content="Simon Frost" />
+  <meta name="dcterms.date" content="2026-09-07" />
+  <title>Formal Verification of FiniteKernels.jl</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {  background-color: #f8f8f8; }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ef2929; } /* Alert */
+    code span.an { color: #8f5902; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #204a87; } /* Attribute */
+    code span.bn { color: #0000cf; } /* BaseN */
+    code span.cf { color: #204a87; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4e9a06; } /* Char */
+    code span.cn { color: #8f5902; } /* Constant */
+    code span.co { color: #8f5902; font-style: italic; } /* Comment */
+    code span.cv { color: #8f5902; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #8f5902; font-weight: bold; font-style: italic; } /* Documentation */
+    code span.dt { color: #204a87; } /* DataType */
+    code span.dv { color: #0000cf; } /* DecVal */
+    code span.er { color: #a40000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #0000cf; } /* Float */
+    code span.fu { color: #204a87; font-weight: bold; } /* Function */
+    code span.im { } /* Import */
+    code span.in { color: #8f5902; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #204a87; font-weight: bold; } /* Keyword */
+    code span.op { color: #ce5c00; font-weight: bold; } /* Operator */
+    code span.ot { color: #8f5902; } /* Other */
+    code span.pp { color: #8f5902; font-style: italic; } /* Preprocessor */
+    code span.sc { color: #ce5c00; font-weight: bold; } /* SpecialChar */
+    code span.ss { color: #4e9a06; } /* SpecialString */
+    code span.st { color: #4e9a06; } /* String */
+    code span.va { color: #000000; } /* Variable */
+    code span.vs { color: #4e9a06; } /* VerbatimString */
+    code span.wa { color: #8f5902; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Formal Verification of FiniteKernels.jl</h1>
+<p class="author">Simon Frost</p>
+<p class="date">2026-09-07</p>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#finitekernelsproofs"
+id="toc-finitekernelsproofs">FiniteKernelsProofs</a>
+<ul>
+<li><a href="#what-is-formalised" id="toc-what-is-formalised">What is
+formalised</a></li>
+<li><a href="#correspondence-with-the-julia-api"
+id="toc-correspondence-with-the-julia-api">Correspondence with the Julia
+API</a></li>
+</ul></li>
+<li><a href="#finitekernelsproofs.finite.kernel"
+id="toc-finitekernelsproofs.finite.kernel">FiniteKernelsProofs.Finite.Kernel</a>
+<ul>
+<li><a href="#conventions" id="toc-conventions">Conventions</a></li>
+</ul></li>
+<li><a href="#finitekernelsproofs.finite.laws"
+id="toc-finitekernelsproofs.finite.laws">FiniteKernelsProofs.Finite.Laws</a></li>
+<li><a href="#finitekernelsproofs.theory.correspondence"
+id="toc-finitekernelsproofs.theory.correspondence">FiniteKernelsProofs.Theory.Correspondence</a></li>
+<li><a href="#roadmap-contains-sorry"
+id="toc-roadmap-contains-sorry">Roadmap (contains
+<code>sorry</code>)</a></li>
+</ul>
+</nav>
+<!-- FiniteKernelsProofs/Basic.lean -->
+<h1 id="finitekernelsproofs">FiniteKernelsProofs</h1>
+<p>Lean 4 / Mathlib formalisation accompanying
+<code>FiniteKernels.jl</code> (toolchain
+<code>leanprover/lean4:v4.30.0</code>, Mathlib tag <code>v4.30.0</code>;
+ADR 0005). This document is generated from the Lean sources by <a
+href="https://github.com/Seasawher/mdgen">mdgen</a>: the prose is the
+module docstrings and the code blocks are the verbatim, machine-checked
+sources. Every declaration outside the final “Roadmap” section is built
+by <code>lake build --wfail</code> and its axioms are printed by
+<code>Audit.lean</code> (only <code>propext</code>,
+<code>Classical.choice</code>, <code>Quot.sound</code>).</p>
+<h2 id="what-is-formalised">What is formalised</h2>
+<p><code>FiniteKernels.jl</code> implements finite stochastic kernels
+(<code>FiniteKernel</code>, tables in the outputs-first layout of ADR
+0002), their sequential (<code>compose</code>) and parallel
+(<code>otimes</code>) composition and the copy/discard/swap structure
+(<code>mcopy</code>, <code>delete</code>, <code>braid</code>) as an
+instance of the GATlab theory <code>ThMarkovCategory</code> (SPEC
+§5–§6). The plan’s “Lean 4 layer” asks for the laws of that instance to
+be proved once, exactly, rather than only pinned numerically in
+<code>test/test_laws.jl</code>, and for no Mathlib
+<code>MarkovCategory</code> instance to be built (the open Mathlib
+<code>Stoch</code> pull request is not vendored). Accordingly the laws
+are stated pointwise about kernels.</p>
+<table>
+<colgroup>
+<col style="width: 5%" />
+<col style="width: 31%" />
+<col style="width: 63%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">Part</th>
+<th style="text-align: left;">Module</th>
+<th style="text-align: left;">Content</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">1</td>
+<td style="text-align: left;"><code>Finite/Kernel.lean</code></td>
+<td style="text-align: left;">The finite model
+<code>Kernel X Y := X → Y → ℝ</code> with <code>comp</code>,
+<code>tensor</code>, <code>idK</code>, <code>copy</code>,
+<code>discard</code>, <code>swap</code>, <code>pointMass</code>,
+<code>ofFun</code>; normalisation and nonnegativity are preserved; the
+category, symmetric-monoidal and commutative-comonoid laws.</td>
+</tr>
+<tr>
+<td style="text-align: left;">2</td>
+<td style="text-align: left;"><code>Finite/Laws.lean</code></td>
+<td style="text-align: left;">The characterisations the Julia tests pin:
+discard naturality iff normalised; copy naturality iff deterministic;
+“copy once is not two samples” for states.</td>
+</tr>
+<tr>
+<td style="text-align: left;">3</td>
+<td
+style="text-align: left;"><code>Theory/Correspondence.lean</code></td>
+<td style="text-align: left;">Dictionary GATlab
+<code>ThCopyDiscardCategory</code> / <code>ThMarkovCategory</code> ↔︎
+Mathlib <code>CopyDiscardCategory</code> / <code>MarkovCategory</code> ↔︎
+the finite model, with <code>example</code>s checking the type of each
+Mathlib field.</td>
+</tr>
+<tr>
+<td style="text-align: left;">—</td>
+<td style="text-align: left;"><code>Roadmap.lean</code></td>
+<td style="text-align: left;"><code>FinStoch</code> as a Mathlib
+<code>Category</code> (sorry-free) and the deferred monoidal / Markov
+instances (<code>sorry</code>); not in the default target.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="correspondence-with-the-julia-api">Correspondence with the Julia
+API</h2>
+<table>
+<colgroup>
+<col style="width: 46%" />
+<col style="width: 53%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: left;">Julia (<code>FiniteKernels.jl</code>)</th>
+<th style="text-align: left;">Lean</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>FiniteKernel</code> table
+<code>table[y..., x...]</code>, <code>kernel_matrix(k)[y, x]</code></td>
+<td style="text-align: left;"><code>Kernel X Y</code>, entry
+<code>k x y = P(y ∣ x)</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>is_normalized(k)</code></td>
+<td style="text-align: left;"><code>Kernel.Normalised k</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>compose(k, l)</code> (diagrammatic
+order)</td>
+<td style="text-align: left;"><code>Kernel.comp k l</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>otimes(k, l)</code></td>
+<td style="text-align: left;"><code>Kernel.tensor k l</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>id(X)</code>, <code>mcopy(X)</code>,
+<code>delete(X)</code>, <code>braid(X, Y)</code></td>
+<td style="text-align: left;"><code>idK X</code>, <code>copy X</code>,
+<code>discard X</code>, <code>swap X Y</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>deterministic(X, Y, f)</code>,
+<code>point_mass(X, a)</code>, <code>state(X, p)</code></td>
+<td style="text-align: left;"><code>ofFun f</code>,
+<code>pointMass a</code>, <code>State X</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">testset “category laws”</td>
+<td style="text-align: left;"><code>comp_assoc</code>,
+<code>idK_comp</code>, <code>comp_idK</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">testset “monoidal laws”</td>
+<td style="text-align: left;"><code>comp_tensor</code>,
+<code>tensor_idK</code>, <code>tensor_assoc</code>,
+<code>tensor_unit_left</code>, <code>tensor_unit_right</code>,
+<code>swap_swap</code>, <code>tensor_swap</code>,
+<code>hexagon</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">testsets “comonoid laws”, “coherence of
+copy and discard”</td>
+<td style="text-align: left;"><code>copy_assoc</code>,
+<code>copy_discard_left</code>, <code>copy_discard_right</code>,
+<code>copy_swap</code>, <code>copy_prod</code>,
+<code>discard_prod</code>, <code>copy_unit</code>,
+<code>discard_unit</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">“discard naturality iff normalised”</td>
+<td
+style="text-align: left;"><code>comp_discard_eq_discard_iff</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">“copy is natural for deterministic kernels
+only”</td>
+<td
+style="text-align: left;"><code>comp_copy_eq_iff_isDeterministic</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">“copy once is not two samples” (SPEC
+§6)</td>
+<td
+style="text-align: left;"><code>comp_copy_eq_tensor_iff_isPointMass</code></td>
+</tr>
+</tbody>
+</table>
+<p>SPEC §61’s Propositions 1–7 concern Bayesian networks and influence
+diagrams and are formalised in <code>BayesianNetworks.jl/proofs</code>
+and <code>InfluenceDiagrams.jl/proofs</code>; this project supplies the
+kernel-level laws those build on. The generic consequences of the
+abstract axioms (<code>discard_natural</code> as a theorem,
+<code>state_discard</code>, <code>deterministic_comp</code>,
+<code>deterministic_copy</code>) are stated once, for Mathlib’s classes,
+in <code>BayesianNetworksProofs.Markov.Basic</code>.</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">namespace</span> FiniteKernelsProofs</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Smoke lemma so that the axiom audit always has a first line. -/</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> smoke : (<span class="dv">1</span> : Nat) + <span class="dv">1</span> = <span class="dv">2</span> := <span class="cf">rfl</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> FiniteKernelsProofs</span></code></pre></div>
+<!-- FiniteKernelsProofs/Finite/Kernel.lean -->
+<h1
+id="finitekernelsproofs.finite.kernel">FiniteKernelsProofs.Finite.Kernel</h1>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> Mathlib.Data.Real.Basic</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> Mathlib.Algebra.BigOperators.Ring.Finset</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> Mathlib.Data.Fintype.BigOperators</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> Mathlib.Data.Fintype.Prod</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> Mathlib.Logic.Equiv.Basic</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> Mathlib.Algebra.Order.BigOperators.Group.Finset</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> Mathlib.Tactic.Ring</span></code></pre></div>
+<p>A concrete finite model of the structure implemented by
+<code>FiniteKernels.jl</code> (<code>src/kernels.jl</code>,
+<code>src/composition.jl</code>, <code>src/copy_discard.jl</code>):
+finite stochastic kernels between finite types, with sequential
+composition, tensor product, copy, discard and swap.</p>
+<p>No category instance is built here (ADR 0005, plan “Lean 4 layer”);
+the laws are stated directly about kernels, pointwise, with the monoidal
+structure maps (associator, unitors, <code>tensorμ</code>) written as
+<em>function-reindexing kernels</em> <code>ofFun e</code> for the
+obvious equivalences.</p>
+<h2 id="conventions">Conventions</h2>
+<ul>
+<li><code>Kernel X Y := X → Y → ℝ</code>; <code>k x y</code> is the
+Julia entry <code>P(y | x)</code>, i.e. <code>table[y..., x...]</code>
+in the outputs-first layout of ADR 0002
+(<code>kernel_matrix(k)[y, x]</code>).</li>
+<li><code>Normalised k</code> is <code>is_normalized(k)</code>: every
+column <code>k x</code> sums to one.</li>
+<li>Entries live in <code>ℝ</code> rather than <code>ℝ≥0</code>;
+nonnegativity is the separate predicate <code>Nonneg</code> and is
+preserved by every construction, but none of the laws below need
+it.</li>
+<li><code>comp k l</code> is the diagrammatic composite
+<code>compose(k, l)</code> (first <code>k</code>, then <code>l</code>),
+i.e. the matrix product
+<code>kernel_matrix(l) * kernel_matrix(k)</code>.</li>
+<li><code>tensor k l</code> is <code>otimes(k, l)</code>, the outer
+product of the tables.</li>
+<li>Deterministic kernels are <code>ofFun f</code> (Julia
+<code>deterministic(X, Y, f)</code>); the identity, copy, discard, swap
+and point masses are all of this form, which is what makes the
+structural laws one-line proofs.</li>
+</ul>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">namespace</span> FiniteKernelsProofs.Finite</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="kw">open</span> Finset</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="do">/-- A finite kernel `X → Y` is a real-valued table `k x y = P(y | x)` (`FiniteKernel.table` in</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="do">the outputs-first layout, read as a function of the input first). -/</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="kw">abbrev</span> Kernel (X Y : <span class="kw">Type</span>) : <span class="kw">Type</span> := X → Y → ℝ</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="do">/-- A state `I → X` (`state(X, probs)`): a kernel out of the monoidal unit `Unit`. -/</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="kw">abbrev</span> State (X : <span class="kw">Type</span>) : <span class="kw">Type</span> := Kernel Unit X</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="kw">namespace</span> Kernel</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="kw">variable</span> {X Y Z W X₁ X₂ X₃ Y₁ Y₂ Y₃ Z₁ Z₂ : <span class="kw">Type</span>}</span></code></pre></div>
+<h3 id="predicates">Predicates</h3>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="do">/-- `is_normalized(k)`: each column sums to one. -/</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> Normalised [Fintype Y] (k : Kernel X Y) : <span class="kw">Prop</span> := ∀ x, ∑ y, k x y = <span class="dv">1</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="do">/-- All entries are nonnegative. -/</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> Nonneg (k : Kernel X Y) : <span class="kw">Prop</span> := ∀ x y, <span class="dv">0</span> ≤ k x y</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="do">/-- A stochastic kernel: nonnegative and normalised (a morphism of **FinStoch**). -/</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> Stochastic [Fintype Y] (k : Kernel X Y) : <span class="kw">Prop</span> := Nonneg k ∧ Normalised k</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="do">/-- A deterministic kernel in the sense of the Julia tests: every column is a point mass. -/</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> IsDeterministic [DecidableEq Y] (k : Kernel X Y) : <span class="kw">Prop</span> :=</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>  ∀ x, ∃ y, ∀ y&#39;, k x y&#39; = <span class="kw">if</span> y&#39; = y <span class="kw">then</span> <span class="dv">1</span> <span class="kw">else</span> <span class="dv">0</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a><span class="do">/-- A state is a point mass (`point_mass(X, a)`) at some `a`. -/</span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> IsPointMass [DecidableEq X] (p : State X) : <span class="kw">Prop</span> :=</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>  ∃ a, ∀ x, p () x = <span class="kw">if</span> x = a <span class="kw">then</span> <span class="dv">1</span> <span class="kw">else</span> <span class="dv">0</span></span></code></pre></div>
+<h3 id="constructions">Constructions</h3>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Sequential composition `compose(k, l)` (diagrammatic order): `(k ⋅ l)(z | x) = Σ_y k(y | x) l(z | y)`,</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="do">the matrix product `kernel_matrix(l) * kernel_matrix(k)`. -/</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> comp [Fintype Y] (k : Kernel X Y) (l : Kernel Y Z) : Kernel X Z :=</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">fun</span> x z =&gt; ∑ y, k x y * l y z</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Parallel composition `otimes(k, l)`: the outer product `(k ⊗ l)(y₁, y₂ | x₁, x₂) = k(y₁ | x₁) l(y₂ | x₂)`. -/</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> tensor (k : Kernel X₁ Y₁) (l : Kernel X₂ Y₂) : Kernel (X₁ × X₂) (Y₁ × Y₂) :=</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>  <span class="kw">fun</span> x y =&gt; k x<span class="fl">.1</span> y<span class="fl">.1</span> * l x<span class="fl">.2</span> y<span class="fl">.2</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The deterministic kernel `deterministic(X, Y, f)` induced by a function: `P(y | x) = [y = f x]`. -/</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> ofFun [DecidableEq Y] (f : X → Y) : Kernel X Y :=</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>  <span class="kw">fun</span> x y =&gt; <span class="kw">if</span> y = f x <span class="kw">then</span> <span class="dv">1</span> <span class="kw">else</span> <span class="dv">0</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The identity kernel `id(X)` (`identity_kernel`). -/</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> idK (X : <span class="kw">Type</span>) [DecidableEq X] : Kernel X X := ofFun id</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The copy map `mcopy(X) = Δ(X) : X → X ⊗ X`, `Δ(x₁, x₂ | x) = [x₁ = x][x₂ = x]` (`copy_kernel`). -/</span></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> copy (X : <span class="kw">Type</span>) [DecidableEq X] : Kernel X (X × X) := ofFun <span class="kw">fun</span> x =&gt; (x, x)</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The discard map `delete(X) = ◊(X) : X → I`, the table of ones (`discard_kernel`). -/</span></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> discard (X : <span class="kw">Type</span>) : Kernel X Unit := <span class="kw">fun</span> _ _ =&gt; <span class="dv">1</span></span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The symmetry `braid(X, Y) = σ(X, Y) : X ⊗ Y → Y ⊗ X` (`swap_kernel`). -/</span></span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> swap (X Y : <span class="kw">Type</span>) [DecidableEq X] [DecidableEq Y] : Kernel (X × Y) (Y × X) :=</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>  ofFun (Equiv.prodComm X Y)</span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The point mass `point_mass(X, a) = dirac(X, a) : I → X`. -/</span></span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> pointMass [DecidableEq X] (a : X) : State X := ofFun <span class="kw">fun</span> _ =&gt; a</span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Push a state through a kernel (`apply(k, p) = compose(p, k)`). -/</span></span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="cf">push</span> [Fintype X] (k : Kernel X Y) (p : State X) : State Y := comp p k</span></code></pre></div>
+<h3
+id="structural-reindexing-kernels-the-monoidal-coherence-data.">Structural
+reindexing kernels (the monoidal coherence data).</h3>
+<p><code>FiniteKernels.jl</code> is strict (Julia tuples are flat), so
+these are all identities there; Mathlib’s <code>MonoidalCategory</code>
+is not strict, and its fields refer to them by name.</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The associator `α_ X Y Z : (X ⊗ Y) ⊗ Z → X ⊗ (Y ⊗ Z)` as a kernel. -/</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> assoc (X Y Z : <span class="kw">Type</span>) [DecidableEq X] [DecidableEq Y] [DecidableEq Z] :</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    Kernel ((X × Y) × Z) (X × (Y × Z)) := ofFun (Equiv.prodAssoc X Y Z)</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The left unitor `λ_ X : I ⊗ X → X` as a kernel. -/</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> leftUnitor (X : <span class="kw">Type</span>) [DecidableEq X] : Kernel (Unit × X) X := ofFun (Equiv.punitProd X)</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The inverse left unitor `(λ_ X).inv : X → I ⊗ X` as a kernel. -/</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> leftUnitorInv (X : <span class="kw">Type</span>) [DecidableEq X] : Kernel X (Unit × X) := ofFun (Equiv.punitProd X).symm</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The right unitor `ρ_ X : X ⊗ I → X` as a kernel. -/</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> rightUnitor (X : <span class="kw">Type</span>) [DecidableEq X] : Kernel (X × Unit) X := ofFun (Equiv.prodPUnit X)</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The inverse right unitor `(ρ_ X).inv : X → X ⊗ I` as a kernel. -/</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> rightUnitorInv (X : <span class="kw">Type</span>) [DecidableEq X] : Kernel X (X × Unit) := ofFun (Equiv.prodPUnit X).symm</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Mathlib&#39;s `tensorμ X X Y Y : (X ⊗ X) ⊗ (Y ⊗ Y) → (X ⊗ Y) ⊗ (X ⊗ Y)`, the middle swap</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a><span class="do">`id(X) ⊗ σ(X, Y) ⊗ id(Y)` of Catlab&#39;s coherence axiom for `mcopy`. -/</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> tensorμ (X Y : <span class="kw">Type</span>) [DecidableEq X] [DecidableEq Y] :</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>    Kernel ((X × X) × (Y × Y)) ((X × Y) × (X × Y)) :=</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>  ofFun <span class="kw">fun</span> p =&gt; ((p.<span class="fl">1.1</span>, p.<span class="fl">2.1</span>), (p.<span class="fl">1.2</span>, p.<span class="fl">2.2</span>))</span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The unique map `I ⊗ I → I` (`(λ_ I).hom`). -/</span></span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> unitMul : Kernel (Unit × Unit) Unit := ofFun <span class="kw">fun</span> _ =&gt; ()</span></code></pre></div>
+<h3 id="pointwise-evaluation-lemmas">Pointwise evaluation lemmas</h3>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> ext_iff {k l : Kernel X Y} : k = l ↔ ∀ x y, k x y = l x y := <span class="kw">by</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> [funext_iff]</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="at">@[simp]</span> <span class="kw">theorem</span> comp_apply [Fintype Y] (k : Kernel X Y) (l : Kernel Y Z) (x : X) (z : Z) :</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    comp k l x z = ∑ y, k x y * l y z := <span class="cf">rfl</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="at">@[simp]</span> <span class="kw">theorem</span> tensor_apply (k : Kernel X₁ Y₁) (l : Kernel X₂ Y₂) (x : X₁ × X₂) (y : Y₁ × Y₂) :</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    tensor k l x y = k x<span class="fl">.1</span> y<span class="fl">.1</span> * l x<span class="fl">.2</span> y<span class="fl">.2</span> := <span class="cf">rfl</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="at">@[simp]</span> <span class="kw">theorem</span> ofFun_apply [DecidableEq Y] (f : X → Y) (x : X) (y : Y) :</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    ofFun f x y = <span class="kw">if</span> y = f x <span class="kw">then</span> <span class="dv">1</span> <span class="kw">else</span> <span class="dv">0</span> := <span class="cf">rfl</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="at">@[simp]</span> <span class="kw">theorem</span> discard_apply (x : X) (u : Unit) : discard X x u = <span class="dv">1</span> := <span class="cf">rfl</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> idK_apply [DecidableEq X] (x y : X) : idK X x y = <span class="kw">if</span> y = x <span class="kw">then</span> <span class="dv">1</span> <span class="kw">else</span> <span class="dv">0</span> := <span class="cf">rfl</span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> copy_apply [DecidableEq X] (x x₁ x₂ : X) :</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    copy X x (x₁, x₂) = <span class="kw">if</span> x₁ = x ∧ x₂ = x <span class="kw">then</span> <span class="dv">1</span> <span class="kw">else</span> <span class="dv">0</span> := <span class="kw">by</span></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> [copy, Prod.ext_iff]</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> swap_apply [DecidableEq X] [DecidableEq Y] (x : X) (y : Y) (y&#39; : Y) (x&#39; : X) :</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>    swap X Y (x, y) (y&#39;, x&#39;) = <span class="kw">if</span> y&#39; = y ∧ x&#39; = x <span class="kw">then</span> <span class="dv">1</span> <span class="kw">else</span> <span class="dv">0</span> := <span class="kw">by</span></span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> [swap, Prod.ext_iff]</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> pointMass_apply [DecidableEq X] (a x : X) : pointMass a () x = <span class="kw">if</span> x = a <span class="kw">then</span> <span class="dv">1</span> <span class="kw">else</span> <span class="dv">0</span> := <span class="cf">rfl</span></span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a><span class="do">/-- `discard` is the deterministic kernel of the unique map to `Unit`. -/</span></span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> discard_eq_ofFun : discard X = ofFun <span class="kw">fun</span> _ =&gt; () := <span class="kw">by</span></span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>  <span class="cf">funext</span> x u; <span class="cf">simp</span></span></code></pre></div>
+<h3 id="the-deterministic-kernel-calculus">The deterministic-kernel
+calculus</h3>
+<p>Every structural morphism is <code>ofFun _</code>, and
+<code>ofFun</code> is a functor from functions to kernels that is
+compatible with <code>tensor</code>. Together with the two lemmas for
+composing an arbitrary kernel with <code>ofFun</code> on either side,
+these make the monoidal and comonoid laws mechanical.</p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Precomposing with a deterministic kernel reindexes the input. -/</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> comp_ofFun_left [Fintype Y] [DecidableEq Y] (f : X → Y) (l : Kernel Y Z) :</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    comp (ofFun f) l = <span class="kw">fun</span> x z =&gt; l (f x) z := <span class="kw">by</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  <span class="cf">funext</span> x z</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> [comp, ite_mul, Finset.sum_ite_eq&#39;]</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Postcomposing with the deterministic kernel of an equivalence reindexes the output. -/</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> comp_ofEquiv_right [Fintype Y] [DecidableEq Z] (k : Kernel X Y) (e : Y ≃ Z) :</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    comp k (ofFun e) = <span class="kw">fun</span> x z =&gt; k x (e.symm z) := <span class="kw">by</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>  <span class="cf">funext</span> x z</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> only [comp_apply, ofFun_apply, mul_ite, mul_one, mul_zero]</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [Finset.sum_eq_single (e.symm z)]</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">simp</span></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">intro</span> b _ hb</span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [if_neg]</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">exact</span> <span class="kw">fun</span> h =&gt; hb (e.symm_apply_eq.mpr h).symm</span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">simp</span></span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Postcomposing with a general deterministic kernel pushes mass forward. -/</span></span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> comp_ofFun_right [Fintype Y] [DecidableEq Z] (k : Kernel X Y) (g : Y → Z) :</span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>    comp k (ofFun g) = <span class="kw">fun</span> x z =&gt; ∑ y, <span class="kw">if</span> z = g y <span class="kw">then</span> k x y <span class="kw">else</span> <span class="dv">0</span> := <span class="kw">by</span></span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>  <span class="cf">funext</span> x z</span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> [comp]</span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> ofFun_comp_ofFun [Fintype Y] [DecidableEq Y] [DecidableEq Z] (f : X → Y) (g : Y → Z) :</span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a>    comp (ofFun f) (ofFun g) = ofFun (g ∘ f) := <span class="kw">by</span></span>
+<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [comp_ofFun_left]; <span class="cf">rfl</span></span>
+<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> tensor_ofFun [DecidableEq Y₁] [DecidableEq Y₂] (f : X₁ → Y₁) (g : X₂ → Y₂) :</span>
+<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a>    tensor (ofFun f) (ofFun g) = ofFun (Prod.map f g) := <span class="kw">by</span></span>
+<span id="cb8-31"><a href="#cb8-31" aria-hidden="true" tabindex="-1"></a>  <span class="cf">funext</span> x y</span>
+<span id="cb8-32"><a href="#cb8-32" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rcases</span> x <span class="kw">with</span> ⟨x₁, x₂⟩; <span class="cf">rcases</span> y <span class="kw">with</span> ⟨y₁, y₂⟩</span>
+<span id="cb8-33"><a href="#cb8-33" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> only [tensor_apply, ofFun_apply, Prod.map_apply, Prod.mk.injEq]</span>
+<span id="cb8-34"><a href="#cb8-34" aria-hidden="true" tabindex="-1"></a>  <span class="cf">split_ifs</span> &lt;;&gt; <span class="cf">simp_all</span></span>
+<span id="cb8-35"><a href="#cb8-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-36"><a href="#cb8-36" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> ofFun_congr [DecidableEq Y] {f g : X → Y} (h : ∀ x, f x = g x) : ofFun f = ofFun g := <span class="kw">by</span></span>
+<span id="cb8-37"><a href="#cb8-37" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [<span class="cf">funext</span> h]</span></code></pre></div>
+<h3 id="normalisation-and-nonnegativity-are-preserved">Normalisation and
+nonnegativity are preserved</h3>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> Normalised.comp [Fintype Y] [Fintype Z] {k : Kernel X Y} {l : Kernel Y Z}</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    (hk : Normalised k) (hl : Normalised l) : Normalised (comp k l) := <span class="kw">by</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">intro</span> x</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> hl&#39; : ∀ y, ∑ z, l y z = <span class="dv">1</span> := hl</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> only [comp_apply]</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [Finset.sum_comm]</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> [← Finset.mul_sum, hl&#39;]</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>  <span class="cf">exact</span> hk x</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> Normalised.tensor [Fintype Y₁] [Fintype Y₂] {k : Kernel X₁ Y₁} {l : Kernel X₂ Y₂}</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    (hk : Normalised k) (hl : Normalised l) : Normalised (tensor k l) := <span class="kw">by</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>  <span class="cf">intro</span> x</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> only [tensor_apply]</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [Fintype.sum_prod_type, ← Finset.sum_mul_sum, hk, hl, one_mul]</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> Normalised.ofFun [Fintype Y] [DecidableEq Y] (f : X → Y) : Normalised (ofFun f) := <span class="kw">by</span></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>  <span class="cf">intro</span> x</span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> [Finset.sum_ite_eq&#39;]</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> Normalised.idK [Fintype X] [DecidableEq X] : Normalised (idK X) := Normalised.ofFun _</span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> Normalised.copy [Fintype X] [DecidableEq X] : Normalised (copy X) := Normalised.ofFun _</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> Normalised.discard : Normalised (discard X) := <span class="kw">by</span> <span class="cf">intro</span> x; <span class="cf">simp</span></span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> Normalised.swap [Fintype X] [Fintype Y] [DecidableEq X] [DecidableEq Y] :</span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>    Normalised (swap X Y) := Normalised.ofFun _</span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> Normalised.pointMass [Fintype X] [DecidableEq X] (a : X) : Normalised (pointMass a) :=</span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>  Normalised.ofFun _</span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> Nonneg.comp [Fintype Y] {k : Kernel X Y} {l : Kernel Y Z} (hk : Nonneg k) (hl : Nonneg l) :</span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a>    Nonneg (comp k l) := <span class="kw">fun</span> x z =&gt;</span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a>  Finset.sum_nonneg <span class="kw">fun</span> y _ =&gt; mul_nonneg (hk x y) (hl y z)</span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> Nonneg.tensor {k : Kernel X₁ Y₁} {l : Kernel X₂ Y₂} (hk : Nonneg k) (hl : Nonneg l) :</span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a>    Nonneg (tensor k l) := <span class="kw">fun</span> _ _ =&gt; mul_nonneg (hk _ _) (hl _ _)</span>
+<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> Nonneg.ofFun [DecidableEq Y] (f : X → Y) : Nonneg (ofFun f) := <span class="kw">by</span></span>
+<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a>  <span class="cf">intro</span> _ _; <span class="cf">simp</span> only [ofFun_apply]; <span class="cf">split_ifs</span> &lt;;&gt; <span class="cf">norm_num</span></span>
+<span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-38"><a href="#cb9-38" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> Nonneg.discard : Nonneg (discard X) := <span class="kw">fun</span> _ _ =&gt; zero_le_one</span>
+<span id="cb9-39"><a href="#cb9-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-40"><a href="#cb9-40" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> Stochastic.comp [Fintype Y] [Fintype Z] {k : Kernel X Y} {l : Kernel Y Z}</span>
+<span id="cb9-41"><a href="#cb9-41" aria-hidden="true" tabindex="-1"></a>    (hk : Stochastic k) (hl : Stochastic l) : Stochastic (comp k l) :=</span>
+<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a>  ⟨hk.<span class="fl">1.</span>comp hl<span class="fl">.1</span>, hk.<span class="fl">2.</span>comp hl<span class="fl">.2</span>⟩</span>
+<span id="cb9-43"><a href="#cb9-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-44"><a href="#cb9-44" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> Stochastic.tensor [Fintype Y₁] [Fintype Y₂] {k : Kernel X₁ Y₁} {l : Kernel X₂ Y₂}</span>
+<span id="cb9-45"><a href="#cb9-45" aria-hidden="true" tabindex="-1"></a>    (hk : Stochastic k) (hl : Stochastic l) : Stochastic (tensor k l) :=</span>
+<span id="cb9-46"><a href="#cb9-46" aria-hidden="true" tabindex="-1"></a>  ⟨hk.<span class="fl">1.</span>tensor hl<span class="fl">.1</span>, hk.<span class="fl">2.</span>tensor hl<span class="fl">.2</span>⟩</span>
+<span id="cb9-47"><a href="#cb9-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-48"><a href="#cb9-48" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> Stochastic.ofFun [Fintype Y] [DecidableEq Y] (f : X → Y) : Stochastic (ofFun f) :=</span>
+<span id="cb9-49"><a href="#cb9-49" aria-hidden="true" tabindex="-1"></a>  ⟨Nonneg.ofFun f, Normalised.ofFun f⟩</span></code></pre></div>
+<h3 id="category-laws-julia-testset-category-laws">Category laws (Julia
+testset “category laws”)</h3>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> comp_assoc [Fintype Y] [Fintype Z] (k : Kernel X Y) (l : Kernel Y Z) (m : Kernel Z W) :</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    comp (comp k l) m = comp k (comp l m) := <span class="kw">by</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">funext</span> x w</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> only [comp_apply, Finset.sum_mul, Finset.mul_sum]</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [Finset.sum_comm]</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> [mul_assoc]</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> idK_comp [Fintype X] [DecidableEq X] (k : Kernel X Y) : comp (idK X) k = k := <span class="kw">by</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [idK, comp_ofFun_left]; <span class="cf">rfl</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> comp_idK [Fintype Y] [DecidableEq Y] (k : Kernel X Y) : comp k (idK Y) = k := <span class="kw">by</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [idK]; <span class="cf">exact</span> comp_ofEquiv_right k (Equiv.refl Y)</span></code></pre></div>
+<h3 id="monoidal-laws-julia-testset-monoidal-laws">Monoidal laws (Julia
+testset “monoidal laws”)</h3>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Interchange: `compose(otimes(k, l), otimes(k&#39;, l&#39;)) = otimes(compose(k, k&#39;), compose(l, l&#39;))`. -/</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> comp_tensor [Fintype Y₁] [Fintype Y₂] (k : Kernel X₁ Y₁) (l : Kernel X₂ Y₂)</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    (k&#39; : Kernel Y₁ Z₁) (l&#39; : Kernel Y₂ Z₂) :</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    comp (tensor k l) (tensor k&#39; l&#39;) = tensor (comp k k&#39;) (comp l l&#39;) := <span class="kw">by</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>  <span class="cf">funext</span> x z</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> only [comp_apply, tensor_apply, Fintype.sum_prod_type, Finset.sum_mul_sum]</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>  <span class="cf">exact</span> Finset.sum_congr <span class="cf">rfl</span> <span class="kw">fun</span> y₁ _ =&gt; Finset.sum_congr <span class="cf">rfl</span> <span class="kw">fun</span> y₂ _ =&gt; <span class="kw">by</span> <span class="cf">ring</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a><span class="do">/-- `otimes(id(X), id(Y)) = id(otimes(X, Y))`. -/</span></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> tensor_idK [DecidableEq X] [DecidableEq Y] : tensor (idK X) (idK Y) = idK (X × Y) := <span class="kw">by</span></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> only [idK, tensor_ofFun]; <span class="cf">rfl</span></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Associativity of the tensor, up to the associator:</span></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a><span class="do">`otimes(otimes(k, l), m) ⋅ α = α ⋅ otimes(k, otimes(l, m))`. -/</span></span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> tensor_assoc [Fintype X₁] [Fintype X₂] [Fintype X₃] [Fintype Y₁] [Fintype Y₂] [Fintype Y₃]</span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>    [DecidableEq X₁] [DecidableEq X₂] [DecidableEq X₃] [DecidableEq Y₁] [DecidableEq Y₂]</span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>    [DecidableEq Y₃] (k : Kernel X₁ Y₁) (l : Kernel X₂ Y₂) (m : Kernel X₃ Y₃) :</span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a>    comp (tensor (tensor k l) m) (assoc Y₁ Y₂ Y₃) = comp (assoc X₁ X₂ X₃) (tensor k (tensor l m)) := <span class="kw">by</span></span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [assoc, assoc, comp_ofEquiv_right, comp_ofFun_left]</span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>  <span class="cf">funext</span> x y</span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rcases</span> x <span class="kw">with</span> ⟨⟨x₁, x₂⟩, x₃⟩; <span class="cf">rcases</span> y <span class="kw">with</span> ⟨y₁, y₂, y₃⟩</span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> [mul_assoc]</span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Right unit of the tensor, up to the right unitor: `otimes(k, id(I)) ⋅ ρ = ρ ⋅ k`. -/</span></span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> tensor_unit_right [Fintype X] [Fintype Y] [DecidableEq X] [DecidableEq Y] (k : Kernel X Y) :</span>
+<span id="cb11-26"><a href="#cb11-26" aria-hidden="true" tabindex="-1"></a>    comp (tensor k (idK Unit)) (rightUnitor Y) = comp (rightUnitor X) k := <span class="kw">by</span></span>
+<span id="cb11-27"><a href="#cb11-27" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [rightUnitor, rightUnitor, comp_ofEquiv_right, comp_ofFun_left]</span>
+<span id="cb11-28"><a href="#cb11-28" aria-hidden="true" tabindex="-1"></a>  <span class="cf">funext</span> x y</span>
+<span id="cb11-29"><a href="#cb11-29" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> [idK]</span>
+<span id="cb11-30"><a href="#cb11-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-31"><a href="#cb11-31" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Left unit of the tensor, up to the left unitor: `otimes(id(I), k) ⋅ λ = λ ⋅ k`. -/</span></span>
+<span id="cb11-32"><a href="#cb11-32" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> tensor_unit_left [Fintype X] [Fintype Y] [DecidableEq X] [DecidableEq Y] (k : Kernel X Y) :</span>
+<span id="cb11-33"><a href="#cb11-33" aria-hidden="true" tabindex="-1"></a>    comp (tensor (idK Unit) k) (leftUnitor Y) = comp (leftUnitor X) k := <span class="kw">by</span></span>
+<span id="cb11-34"><a href="#cb11-34" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [leftUnitor, leftUnitor, comp_ofEquiv_right, comp_ofFun_left]</span>
+<span id="cb11-35"><a href="#cb11-35" aria-hidden="true" tabindex="-1"></a>  <span class="cf">funext</span> x y</span>
+<span id="cb11-36"><a href="#cb11-36" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> [idK]</span>
+<span id="cb11-37"><a href="#cb11-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-38"><a href="#cb11-38" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The symmetry is an involution: `braid(X, Y) ⋅ braid(Y, X) = id(X ⊗ Y)`. -/</span></span>
+<span id="cb11-39"><a href="#cb11-39" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> swap_swap [Fintype X] [Fintype Y] [DecidableEq X] [DecidableEq Y] :</span>
+<span id="cb11-40"><a href="#cb11-40" aria-hidden="true" tabindex="-1"></a>    comp (swap X Y) (swap Y X) = idK (X × Y) := <span class="kw">by</span></span>
+<span id="cb11-41"><a href="#cb11-41" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [swap, swap, ofFun_comp_ofFun, idK]; <span class="cf">rfl</span></span>
+<span id="cb11-42"><a href="#cb11-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-43"><a href="#cb11-43" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Naturality of the symmetry: `otimes(k, l) ⋅ braid = braid ⋅ otimes(l, k)`. -/</span></span>
+<span id="cb11-44"><a href="#cb11-44" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> tensor_swap [Fintype X₁] [Fintype X₂] [Fintype Y₁] [Fintype Y₂] [DecidableEq X₁]</span>
+<span id="cb11-45"><a href="#cb11-45" aria-hidden="true" tabindex="-1"></a>    [DecidableEq X₂] [DecidableEq Y₁] [DecidableEq Y₂] (k : Kernel X₁ Y₁) (l : Kernel X₂ Y₂) :</span>
+<span id="cb11-46"><a href="#cb11-46" aria-hidden="true" tabindex="-1"></a>    comp (tensor k l) (swap Y₁ Y₂) = comp (swap X₁ X₂) (tensor l k) := <span class="kw">by</span></span>
+<span id="cb11-47"><a href="#cb11-47" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [swap, swap, comp_ofEquiv_right, comp_ofFun_left]</span>
+<span id="cb11-48"><a href="#cb11-48" aria-hidden="true" tabindex="-1"></a>  <span class="cf">funext</span> x y</span>
+<span id="cb11-49"><a href="#cb11-49" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> [mul_comm]</span>
+<span id="cb11-50"><a href="#cb11-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-51"><a href="#cb11-51" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The hexagon identity (`SymmetricCategory`/`BraidedCategory.hexagon_forward`), which is the</span></span>
+<span id="cb11-52"><a href="#cb11-52" aria-hidden="true" tabindex="-1"></a><span class="do">associator-explicit form of the Julia test</span></span>
+<span id="cb11-53"><a href="#cb11-53" aria-hidden="true" tabindex="-1"></a><span class="do">`braid(X ⊗ Y, Z) = (id(X) ⊗ braid(Y, Z)) ⋅ (braid(X, Z) ⊗ id(Y))`. -/</span></span>
+<span id="cb11-54"><a href="#cb11-54" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> hexagon [Fintype X] [Fintype Y] [Fintype Z] [DecidableEq X] [DecidableEq Y]</span>
+<span id="cb11-55"><a href="#cb11-55" aria-hidden="true" tabindex="-1"></a>    [DecidableEq Z] :</span>
+<span id="cb11-56"><a href="#cb11-56" aria-hidden="true" tabindex="-1"></a>    comp (assoc X Y Z) (comp (swap X (Y × Z)) (assoc Y Z X)) =</span>
+<span id="cb11-57"><a href="#cb11-57" aria-hidden="true" tabindex="-1"></a>      comp (tensor (swap X Y) (idK Z)) (comp (assoc Y X Z) (tensor (idK Y) (swap X Z))) := <span class="kw">by</span></span>
+<span id="cb11-58"><a href="#cb11-58" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> only [assoc, swap, idK, tensor_ofFun, ofFun_comp_ofFun]</span>
+<span id="cb11-59"><a href="#cb11-59" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rfl</span></span>
+<span id="cb11-60"><a href="#cb11-60" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-61"><a href="#cb11-61" aria-hidden="true" tabindex="-1"></a><span class="do">/-- `braid(X, I) = id(X)` up to the unitors. -/</span></span>
+<span id="cb11-62"><a href="#cb11-62" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> swap_unit_right [Fintype X] [DecidableEq X] :</span>
+<span id="cb11-63"><a href="#cb11-63" aria-hidden="true" tabindex="-1"></a>    comp (swap X Unit) (leftUnitor X) = rightUnitor X := <span class="kw">by</span></span>
+<span id="cb11-64"><a href="#cb11-64" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> only [swap, leftUnitor, rightUnitor, ofFun_comp_ofFun]</span>
+<span id="cb11-65"><a href="#cb11-65" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rfl</span></span></code></pre></div>
+<h3
+id="comonoid-laws-julia-testsets-comonoid-laws-and-coherence-of-copy-and-discard.">Comonoid
+laws (Julia testsets “comonoid laws” and “coherence of copy and
+discard”).</h3>
+<p>Each is named after the Mathlib field it instantiates; see
+<code>Theory/Correspondence.lean</code>.</p>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Coassociativity, `ComonObj.comul_assoc`: `Δ ≫ (X ◁ Δ) = Δ ≫ (Δ ▷ X) ≫ α`. -/</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> copy_assoc [Fintype X] [DecidableEq X] :</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    comp (copy X) (tensor (idK X) (copy X)) =</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>      comp (comp (copy X) (tensor (copy X) (idK X))) (assoc X X X) := <span class="kw">by</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> only [copy, idK, assoc, tensor_ofFun, ofFun_comp_ofFun]</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rfl</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Left counit, `ComonObj.counit_comul`: `Δ ≫ (ε ▷ X) = (λ_ X).inv`. -/</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> copy_discard_left [Fintype X] [DecidableEq X] :</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>    comp (copy X) (tensor (discard X) (idK X)) = leftUnitorInv X := <span class="kw">by</span></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> only [copy, idK, discard_eq_ofFun, leftUnitorInv, tensor_ofFun, ofFun_comp_ofFun]</span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rfl</span></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Right counit, `ComonObj.comul_counit`: `Δ ≫ (X ◁ ε) = (ρ_ X).inv`. -/</span></span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> copy_discard_right [Fintype X] [DecidableEq X] :</span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>    comp (copy X) (tensor (idK X) (discard X)) = rightUnitorInv X := <span class="kw">by</span></span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> only [copy, idK, discard_eq_ofFun, rightUnitorInv, tensor_ofFun, ofFun_comp_ofFun]</span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rfl</span></span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The strict form of the counit laws checked in Julia: `Δ(X) ⋅ (◊(X) ⊗ id(X)) = id(X)`. -/</span></span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> copy_discard_left_strict [Fintype X] [DecidableEq X] :</span>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a>    comp (comp (copy X) (tensor (discard X) (idK X))) (leftUnitor X) = idK X := <span class="kw">by</span></span>
+<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [copy_discard_left, leftUnitorInv, leftUnitor, ofFun_comp_ofFun, idK]</span>
+<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a>  <span class="cf">exact</span> ofFun_congr <span class="kw">fun</span> x =&gt; <span class="kw">by</span> <span class="cf">simp</span></span>
+<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a><span class="do">/-- `Δ(X) ⋅ (id(X) ⊗ ◊(X)) = id(X)`. -/</span></span>
+<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> copy_discard_right_strict [Fintype X] [DecidableEq X] :</span>
+<span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a>    comp (comp (copy X) (tensor (idK X) (discard X))) (rightUnitor X) = idK X := <span class="kw">by</span></span>
+<span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [copy_discard_right, rightUnitorInv, rightUnitor, ofFun_comp_ofFun, idK]</span>
+<span id="cb12-30"><a href="#cb12-30" aria-hidden="true" tabindex="-1"></a>  <span class="cf">exact</span> ofFun_congr <span class="kw">fun</span> x =&gt; <span class="kw">by</span> <span class="cf">simp</span></span>
+<span id="cb12-31"><a href="#cb12-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-32"><a href="#cb12-32" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Cocommutativity, `IsCommComonObj.comul_comm`: `Δ ≫ β = Δ`. -/</span></span>
+<span id="cb12-33"><a href="#cb12-33" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> copy_swap [Fintype X] [DecidableEq X] : comp (copy X) (swap X X) = copy X := <span class="kw">by</span></span>
+<span id="cb12-34"><a href="#cb12-34" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> only [copy, swap, ofFun_comp_ofFun]</span>
+<span id="cb12-35"><a href="#cb12-35" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rfl</span></span>
+<span id="cb12-36"><a href="#cb12-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-37"><a href="#cb12-37" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Coherence of copy with the tensor, `CopyDiscardCategory.copy_tensor`:</span></span>
+<span id="cb12-38"><a href="#cb12-38" aria-hidden="true" tabindex="-1"></a><span class="do">`Δ[X ⊗ Y] = (Δ[X] ⊗ Δ[Y]) ≫ tensorμ`, Catlab&#39;s `Δ(A ⊗ B) = (Δ(A) ⊗ Δ(B)) ⋅ (id(A) ⊗ σ(A,B) ⊗ id(B))`. -/</span></span>
+<span id="cb12-39"><a href="#cb12-39" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> copy_prod [Fintype X] [Fintype Y] [DecidableEq X] [DecidableEq Y] :</span>
+<span id="cb12-40"><a href="#cb12-40" aria-hidden="true" tabindex="-1"></a>    copy (X × Y) = comp (tensor (copy X) (copy Y)) (tensorμ X Y) := <span class="kw">by</span></span>
+<span id="cb12-41"><a href="#cb12-41" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> only [copy, tensorμ, tensor_ofFun, ofFun_comp_ofFun]</span>
+<span id="cb12-42"><a href="#cb12-42" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rfl</span></span>
+<span id="cb12-43"><a href="#cb12-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-44"><a href="#cb12-44" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Coherence of discard with the tensor, `CopyDiscardCategory.discard_tensor`:</span></span>
+<span id="cb12-45"><a href="#cb12-45" aria-hidden="true" tabindex="-1"></a><span class="do">`ε[X ⊗ Y] = (ε[X] ⊗ ε[Y]) ≫ (λ_ I).hom`, Catlab&#39;s `◊(A ⊗ B) = ◊(A) ⊗ ◊(B)`. -/</span></span>
+<span id="cb12-46"><a href="#cb12-46" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> discard_prod [Fintype X] [Fintype Y] :</span>
+<span id="cb12-47"><a href="#cb12-47" aria-hidden="true" tabindex="-1"></a>    discard (X × Y) = comp (tensor (discard X) (discard Y)) unitMul := <span class="kw">by</span></span>
+<span id="cb12-48"><a href="#cb12-48" aria-hidden="true" tabindex="-1"></a>  <span class="cf">funext</span> x u</span>
+<span id="cb12-49"><a href="#cb12-49" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> [unitMul]</span>
+<span id="cb12-50"><a href="#cb12-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-51"><a href="#cb12-51" aria-hidden="true" tabindex="-1"></a><span class="do">/-- `CopyDiscardCategory.copy_unit`: `Δ[I] = (λ_ I).inv`, Catlab&#39;s `Δ(munit()) = id(munit())`. -/</span></span>
+<span id="cb12-52"><a href="#cb12-52" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> copy_unit : copy Unit = leftUnitorInv Unit := <span class="cf">rfl</span></span>
+<span id="cb12-53"><a href="#cb12-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-54"><a href="#cb12-54" aria-hidden="true" tabindex="-1"></a><span class="do">/-- `CopyDiscardCategory.discard_unit`: `ε[I] = 𝟙 I`, Catlab&#39;s `◊(munit()) = id(munit())`. -/</span></span>
+<span id="cb12-55"><a href="#cb12-55" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> discard_unit : discard Unit = idK Unit := <span class="kw">by</span></span>
+<span id="cb12-56"><a href="#cb12-56" aria-hidden="true" tabindex="-1"></a>  <span class="cf">funext</span> x u; <span class="cf">simp</span> [idK]</span>
+<span id="cb12-57"><a href="#cb12-57" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-58"><a href="#cb12-58" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Every deterministic kernel is a comonoid homomorphism: it commutes with copy</span></span>
+<span id="cb12-59"><a href="#cb12-59" aria-hidden="true" tabindex="-1"></a><span class="do">(`Deterministic.copy_natural`, the equation the Julia test checks for `deterministic(X, Y, f)`). -/</span></span>
+<span id="cb12-60"><a href="#cb12-60" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> ofFun_copy_natural [Fintype X] [Fintype Y] [DecidableEq X] [DecidableEq Y] (f : X → Y) :</span>
+<span id="cb12-61"><a href="#cb12-61" aria-hidden="true" tabindex="-1"></a>    comp (ofFun f) (copy Y) = comp (copy X) (tensor (ofFun f) (ofFun f)) := <span class="kw">by</span></span>
+<span id="cb12-62"><a href="#cb12-62" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> only [copy, tensor_ofFun, ofFun_comp_ofFun]</span>
+<span id="cb12-63"><a href="#cb12-63" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rfl</span></span>
+<span id="cb12-64"><a href="#cb12-64" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-65"><a href="#cb12-65" aria-hidden="true" tabindex="-1"></a><span class="do">/-- ... and with discard (`Deterministic.discard_natural`). -/</span></span>
+<span id="cb12-66"><a href="#cb12-66" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> ofFun_discard_natural [Fintype X] [Fintype Y] [DecidableEq Y] (f : X → Y) :</span>
+<span id="cb12-67"><a href="#cb12-67" aria-hidden="true" tabindex="-1"></a>    comp (ofFun f) (discard Y) = discard X := <span class="kw">by</span></span>
+<span id="cb12-68"><a href="#cb12-68" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [comp_ofFun_left]; <span class="cf">rfl</span></span>
+<span id="cb12-69"><a href="#cb12-69" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-70"><a href="#cb12-70" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> Kernel</span>
+<span id="cb12-71"><a href="#cb12-71" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-72"><a href="#cb12-72" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> FiniteKernelsProofs.Finite</span></code></pre></div>
+<!-- FiniteKernelsProofs/Finite/Laws.lean -->
+<h1
+id="finitekernelsproofs.finite.laws">FiniteKernelsProofs.Finite.Laws</h1>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> FiniteKernelsProofs.Finite.Kernel</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> Mathlib.Tactic.NormNum</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> Mathlib.Tactic.Linarith</span></code></pre></div>
+<p>The two facts that <code>FiniteKernels.jl</code> pins numerically in
+<code>test/test_laws.jl</code> and that separate a Markov category from
+a cartesian one, proved exactly for the finite model of
+<code>Finite/Kernel.lean</code>:</p>
+<ul>
+<li><strong>Discard naturality iff normalised</strong>
+(<code>comp_discard_eq_discard_iff</code>): the Markov axiom
+<code>f ⋅ ◊(B) == ◊(A)</code> holds for a table precisely when it is
+normalised. Julia testset “discard naturality iff normalised”, including
+the <code>[0.5 0.5; 1.0 0.5]</code> counterexample
+(<code>comp_discard_apply</code> gives the column sums
+<code>[1.5, 1.0]</code>).</li>
+<li><strong>Copy naturality iff deterministic</strong>
+(<code>comp_copy_eq_iff_isDeterministic</code>): for a normalised
+kernel, <code>f ⋅ Δ(B) == Δ(A) ⋅ (f ⊗ f)</code> holds iff every column
+is a point mass. Julia: “copy is natural for deterministic kernels
+only”.</li>
+<li><strong>Copy versus tensor</strong>
+(<code>comp_copy_eq_tensor_iff_isPointMass</code>): the special case of
+a state <code>p : I → X</code>;
+<code>compose(p, mcopy(X)) = otimes(p, p)</code> (modulo
+<code>I ⊗ I ≅ I</code>, which is <code>copy Unit</code>) iff
+<code>p</code> is a point mass. Julia testset “copy once is not two
+samples (SPEC section 6)”.</li>
+</ul>
+<p>The one piece of real arithmetic is
+<code>exists_pointMass_of_mul</code>: if
+<code>q x * q x' = [x = x'] q x</code> and <code>∑ q = 1</code>, then
+<code>q</code> is an indicator. From <code>q x * q x = q x</code> one
+gets <code>q x ∈ {0, 1}</code>; the sum forces at least one
+<code>1</code>; and <code>q x * q a = 0</code> for <code>x ≠ a</code>
+forces the rest to be <code>0</code>.</p>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">namespace</span> FiniteKernelsProofs.Finite.Kernel</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="kw">open</span> Finset</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="kw">variable</span> {X Y : <span class="kw">Type</span>}</span></code></pre></div>
+<h3 id="discard-naturality-iff-normalised">Discard naturality iff
+normalised</h3>
+<div class="sourceCode" id="cb15"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="do">/-- `compose(k, delete(Y))` is the table of column sums. -/</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> comp_discard_apply [Fintype Y] (k : Kernel X Y) (x : X) (u : Unit) :</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    comp k (discard Y) x u = ∑ y, k x y := <span class="kw">by</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The Markov axiom `f ⋅ ◊(B) == ◊(A)` holds for a table iff the table is normalised. -/</span></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> comp_discard_eq_discard_iff [Fintype Y] (k : Kernel X Y) :</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>    comp k (discard Y) = discard X ↔ Normalised k := <span class="kw">by</span></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>  <span class="cf">constructor</span></span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">intro</span> h x</span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> := congrFun (congrFun h x) ()</span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">simpa</span> <span class="kw">using</span> this</span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">intro</span> h</span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">funext</span> x u</span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">simp</span> [h x]</span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Discard is natural for normalised kernels (`MarkovCategory.discard_natural`). -/</span></span>
+<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> Normalised.comp_discard [Fintype Y] {k : Kernel X Y} (hk : Normalised k) :</span>
+<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a>    Kernel.comp k (Kernel.discard Y) = Kernel.discard X :=</span>
+<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a>  (comp_discard_eq_discard_iff k).mpr hk</span>
+<span id="cb15-21"><a href="#cb15-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-22"><a href="#cb15-22" aria-hidden="true" tabindex="-1"></a><span class="do">/-- A normalised state has total mass one (`state_discard` in `BayesianNetworksProofs`). -/</span></span>
+<span id="cb15-23"><a href="#cb15-23" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> Normalised.state_discard [Fintype X] {p : State X} (hp : Normalised p) :</span>
+<span id="cb15-24"><a href="#cb15-24" aria-hidden="true" tabindex="-1"></a>    Kernel.comp p (Kernel.discard X) = Kernel.idK Unit := <span class="kw">by</span></span>
+<span id="cb15-25"><a href="#cb15-25" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [hp.comp_discard, discard_unit]</span></code></pre></div>
+<h3 id="the-indicator-lemma">The indicator lemma</h3>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="do">/-- If `q x * q x&#39; = [x = x&#39;] q x` and `∑ q = 1` then `q` is the indicator of a single point. -/</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> exists_pointMass_of_mul [Fintype X] [DecidableEq X] (q : X → ℝ) (hsum : ∑ x, q x = <span class="dv">1</span>)</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>    (h : ∀ x x&#39;, q x * q x&#39; = <span class="kw">if</span> x = x&#39; <span class="kw">then</span> q x <span class="kw">else</span> <span class="dv">0</span>) :</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>    ∃ a, ∀ x, q x = <span class="kw">if</span> x = a <span class="kw">then</span> <span class="dv">1</span> <span class="kw">else</span> <span class="dv">0</span> := <span class="kw">by</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> h01 : ∀ x, q x = <span class="dv">0</span> ∨ q x = <span class="dv">1</span> := <span class="kw">by</span></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">intro</span> x</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> hx := h x x</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [if_pos <span class="cf">rfl</span>] <span class="kw">at</span> hx</span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> : q x * (q x - <span class="dv">1</span>) = <span class="dv">0</span> := <span class="kw">by</span> <span class="cf">rw</span> [mul_sub, mul_one, hx, sub_self]</span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rcases</span> mul_eq_zero.mp this <span class="kw">with</span> h0 | h1</span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>    · <span class="cf">exact</span> Or.inl h0</span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>    · <span class="cf">exact</span> Or.inr (sub_eq_zero.mp h1)</span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> hex : ∃ a, q a = <span class="dv">1</span> := <span class="kw">by</span></span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">by_contra</span> hne</span>
+<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">push</span> Not <span class="kw">at</span> hne</span>
+<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> hzero : ∀ x, q x = <span class="dv">0</span> := <span class="kw">fun</span> x =&gt; (h01 x).resolve_right (hne x)</span>
+<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> : ∑ x, q x = <span class="dv">0</span> := Finset.sum_eq_zero <span class="kw">fun</span> x _ =&gt; hzero x</span>
+<span id="cb16-18"><a href="#cb16-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [this] <span class="kw">at</span> hsum</span>
+<span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">exact</span> zero_ne_one hsum</span>
+<span id="cb16-20"><a href="#cb16-20" aria-hidden="true" tabindex="-1"></a>  <span class="cf">obtain</span> ⟨a, ha⟩ := hex</span>
+<span id="cb16-21"><a href="#cb16-21" aria-hidden="true" tabindex="-1"></a>  <span class="cf">refine</span> ⟨a, <span class="kw">fun</span> x =&gt; ?_⟩</span>
+<span id="cb16-22"><a href="#cb16-22" aria-hidden="true" tabindex="-1"></a>  <span class="cf">by_cases</span> hxa : x = a</span>
+<span id="cb16-23"><a href="#cb16-23" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">subst</span> hxa; <span class="cf">simp</span> [ha]</span>
+<span id="cb16-24"><a href="#cb16-24" aria-hidden="true" tabindex="-1"></a>  · <span class="kw">have</span> hx := h x a</span>
+<span id="cb16-25"><a href="#cb16-25" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [if_neg hxa, ha, mul_one] <span class="kw">at</span> hx</span>
+<span id="cb16-26"><a href="#cb16-26" aria-hidden="true" tabindex="-1"></a>    <span class="cf">simp</span> [hxa, hx]</span>
+<span id="cb16-27"><a href="#cb16-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-28"><a href="#cb16-28" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Conversely, an indicator satisfies the product identity. -/</span></span>
+<span id="cb16-29"><a href="#cb16-29" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> mul_ite_eq_of_pointMass [DecidableEq X] (a x x&#39; : X) :</span>
+<span id="cb16-30"><a href="#cb16-30" aria-hidden="true" tabindex="-1"></a>    (<span class="kw">if</span> x = a <span class="kw">then</span> (<span class="dv">1</span> : ℝ) <span class="kw">else</span> <span class="dv">0</span>) * (<span class="kw">if</span> x&#39; = a <span class="kw">then</span> <span class="dv">1</span> <span class="kw">else</span> <span class="dv">0</span>) =</span>
+<span id="cb16-31"><a href="#cb16-31" aria-hidden="true" tabindex="-1"></a>      <span class="kw">if</span> x = x&#39; <span class="kw">then</span> (<span class="kw">if</span> x = a <span class="kw">then</span> <span class="dv">1</span> <span class="kw">else</span> <span class="dv">0</span>) <span class="kw">else</span> <span class="dv">0</span> := <span class="kw">by</span></span>
+<span id="cb16-32"><a href="#cb16-32" aria-hidden="true" tabindex="-1"></a>  <span class="cf">by_cases</span> hx : x = a</span>
+<span id="cb16-33"><a href="#cb16-33" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">subst</span> hx</span>
+<span id="cb16-34"><a href="#cb16-34" aria-hidden="true" tabindex="-1"></a>    <span class="cf">by_cases</span> hx&#39; : x&#39; = x</span>
+<span id="cb16-35"><a href="#cb16-35" aria-hidden="true" tabindex="-1"></a>    · <span class="cf">subst</span> hx&#39;; <span class="cf">simp</span></span>
+<span id="cb16-36"><a href="#cb16-36" aria-hidden="true" tabindex="-1"></a>    · <span class="cf">simp</span> [hx&#39;, Ne.symm hx&#39;]</span>
+<span id="cb16-37"><a href="#cb16-37" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">by_cases</span> hx&#39; : x&#39; = a</span>
+<span id="cb16-38"><a href="#cb16-38" aria-hidden="true" tabindex="-1"></a>    · <span class="cf">subst</span> hx&#39;; <span class="cf">simp</span> [hx]</span>
+<span id="cb16-39"><a href="#cb16-39" aria-hidden="true" tabindex="-1"></a>    · <span class="cf">simp</span> [hx, hx&#39;]</span></code></pre></div>
+<h3 id="copy-naturality-iff-deterministic">Copy naturality iff
+deterministic</h3>
+<div class="sourceCode" id="cb17"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="do">/-- `compose(k, mcopy(Y))` puts the column of `k` on the diagonal (draw once, then copy). -/</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> comp_copy_apply [Fintype Y] [DecidableEq Y] (k : Kernel X Y) (x : X) (y₁ y₂ : Y) :</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    comp k (copy Y) x (y₁, y₂) = <span class="kw">if</span> y₁ = y₂ <span class="kw">then</span> k x y₁ <span class="kw">else</span> <span class="dv">0</span> := <span class="kw">by</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> only [comp_apply, copy, ofFun_apply, Prod.mk.injEq, mul_ite, mul_one, mul_zero]</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>  <span class="cf">by_cases</span> h : y₁ = y₂</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">subst</span> h</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">simp</span></span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">rw</span> [if_neg h]</span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">apply</span> Finset.sum_eq_zero</span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">intro</span> y _</span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [if_neg]</span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rintro</span> ⟨rfl, rfl⟩</span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">exact</span> h <span class="cf">rfl</span></span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a><span class="do">/-- `compose(mcopy(X), otimes(k, k))` is the outer product of the column with itself</span></span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a><span class="do">(draw twice, independently). -/</span></span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> copy_comp_tensor_apply [Fintype X] [DecidableEq X] (k : Kernel X Y) (x : X) (y₁ y₂ : Y) :</span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a>    comp (copy X) (tensor k k) x (y₁, y₂) = k x y₁ * k x y₂ := <span class="kw">by</span></span>
+<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> [copy]</span>
+<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a><span class="do">/-- For a normalised kernel, `f ⋅ Δ(B) == Δ(A) ⋅ (f ⊗ f)` holds iff `f` is deterministic. -/</span></span>
+<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> comp_copy_eq_iff_isDeterministic [Fintype X] [Fintype Y] [DecidableEq X] [DecidableEq Y]</span>
+<span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a>    (k : Kernel X Y) (hk : Normalised k) :</span>
+<span id="cb17-24"><a href="#cb17-24" aria-hidden="true" tabindex="-1"></a>    comp k (copy Y) = comp (copy X) (tensor k k) ↔ IsDeterministic k := <span class="kw">by</span></span>
+<span id="cb17-25"><a href="#cb17-25" aria-hidden="true" tabindex="-1"></a>  <span class="cf">constructor</span></span>
+<span id="cb17-26"><a href="#cb17-26" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">intro</span> h x</span>
+<span id="cb17-27"><a href="#cb17-27" aria-hidden="true" tabindex="-1"></a>    <span class="cf">refine</span> exists_pointMass_of_mul (k x) (hk x) <span class="kw">fun</span> y₁ y₂ =&gt; ?_</span>
+<span id="cb17-28"><a href="#cb17-28" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> := congrFun (congrFun h x) (y₁, y₂)</span>
+<span id="cb17-29"><a href="#cb17-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [comp_copy_apply, copy_comp_tensor_apply] <span class="kw">at</span> this</span>
+<span id="cb17-30"><a href="#cb17-30" aria-hidden="true" tabindex="-1"></a>    <span class="cf">exact</span> this.symm</span>
+<span id="cb17-31"><a href="#cb17-31" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">intro</span> h</span>
+<span id="cb17-32"><a href="#cb17-32" aria-hidden="true" tabindex="-1"></a>    <span class="cf">funext</span> x y</span>
+<span id="cb17-33"><a href="#cb17-33" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rcases</span> y <span class="kw">with</span> ⟨y₁, y₂⟩</span>
+<span id="cb17-34"><a href="#cb17-34" aria-hidden="true" tabindex="-1"></a>    <span class="cf">obtain</span> ⟨a, ha⟩ := h x</span>
+<span id="cb17-35"><a href="#cb17-35" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [comp_copy_apply, copy_comp_tensor_apply, ha y₁, ha y₂]</span>
+<span id="cb17-36"><a href="#cb17-36" aria-hidden="true" tabindex="-1"></a>    <span class="cf">exact</span> (mul_ite_eq_of_pointMass a y₁ y₂).symm</span>
+<span id="cb17-37"><a href="#cb17-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-38"><a href="#cb17-38" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Deterministic kernels are exactly the `ofFun f` (Julia `deterministic(X, Y, f)`). -/</span></span>
+<span id="cb17-39"><a href="#cb17-39" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> isDeterministic_iff_exists_ofFun [DecidableEq Y] (k : Kernel X Y) :</span>
+<span id="cb17-40"><a href="#cb17-40" aria-hidden="true" tabindex="-1"></a>    IsDeterministic k ↔ ∃ f : X → Y, k = ofFun f := <span class="kw">by</span></span>
+<span id="cb17-41"><a href="#cb17-41" aria-hidden="true" tabindex="-1"></a>  <span class="cf">constructor</span></span>
+<span id="cb17-42"><a href="#cb17-42" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">intro</span> h</span>
+<span id="cb17-43"><a href="#cb17-43" aria-hidden="true" tabindex="-1"></a>    <span class="cf">choose</span> f hf <span class="kw">using</span> h</span>
+<span id="cb17-44"><a href="#cb17-44" aria-hidden="true" tabindex="-1"></a>    <span class="cf">exact</span> ⟨f, <span class="cf">funext</span> <span class="kw">fun</span> x =&gt; <span class="cf">funext</span> <span class="kw">fun</span> y =&gt; hf x y⟩</span>
+<span id="cb17-45"><a href="#cb17-45" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">rintro</span> ⟨f, rfl⟩ x</span>
+<span id="cb17-46"><a href="#cb17-46" aria-hidden="true" tabindex="-1"></a>    <span class="cf">exact</span> ⟨f x, <span class="kw">fun</span> _ =&gt; rfl⟩</span>
+<span id="cb17-47"><a href="#cb17-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-48"><a href="#cb17-48" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Deterministic kernels are normalised. -/</span></span>
+<span id="cb17-49"><a href="#cb17-49" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> IsDeterministic.normalised [Fintype Y] [DecidableEq Y] {k : Kernel X Y}</span>
+<span id="cb17-50"><a href="#cb17-50" aria-hidden="true" tabindex="-1"></a>    (h : IsDeterministic k) : Normalised k := <span class="kw">by</span></span>
+<span id="cb17-51"><a href="#cb17-51" aria-hidden="true" tabindex="-1"></a>  <span class="cf">obtain</span> ⟨f, rfl⟩ := (isDeterministic_iff_exists_ofFun k).mp h</span>
+<span id="cb17-52"><a href="#cb17-52" aria-hidden="true" tabindex="-1"></a>  <span class="cf">exact</span> Normalised.ofFun f</span></code></pre></div>
+<h3 id="copy-versus-tensor-for-states">Copy versus tensor for
+states</h3>
+<div class="sourceCode" id="cb18"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> isPointMass_iff_isDeterministic [DecidableEq X] (p : State X) :</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>    IsPointMass p ↔ IsDeterministic p := <span class="kw">by</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">constructor</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">rintro</span> ⟨a, ha⟩ _; <span class="cf">exact</span> ⟨a, ha⟩</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">intro</span> h; <span class="cf">exact</span> h ()</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> isPointMass_iff_exists_pointMass [DecidableEq X] (p : State X) :</span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>    IsPointMass p ↔ ∃ a, p = pointMass a := <span class="kw">by</span></span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>  <span class="cf">constructor</span></span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">rintro</span> ⟨a, ha⟩</span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">exact</span> ⟨a, <span class="cf">funext</span> <span class="kw">fun</span> u =&gt; <span class="cf">funext</span> <span class="kw">fun</span> x =&gt; <span class="kw">by</span> <span class="cf">cases</span> u; <span class="cf">exact</span> ha x⟩</span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">rintro</span> ⟨a, rfl⟩</span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">exact</span> ⟨a, <span class="kw">fun</span> x =&gt; rfl⟩</span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-15"><a href="#cb18-15" aria-hidden="true" tabindex="-1"></a><span class="do">/-- **Copy once is not two samples.** For a normalised state `p`, drawing once and copying</span></span>
+<span id="cb18-16"><a href="#cb18-16" aria-hidden="true" tabindex="-1"></a><span class="do">(`compose(p, mcopy(X))`) equals drawing twice independently (`otimes(p, p)`, with the domain</span></span>
+<span id="cb18-17"><a href="#cb18-17" aria-hidden="true" tabindex="-1"></a><span class="do">`I ⊗ I` identified with `I` by `copy Unit`) iff `p` is a point mass. -/</span></span>
+<span id="cb18-18"><a href="#cb18-18" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> comp_copy_eq_tensor_iff_isPointMass [Fintype X] [DecidableEq X] (p : State X)</span>
+<span id="cb18-19"><a href="#cb18-19" aria-hidden="true" tabindex="-1"></a>    (hp : Normalised p) :</span>
+<span id="cb18-20"><a href="#cb18-20" aria-hidden="true" tabindex="-1"></a>    comp p (copy X) = comp (copy Unit) (tensor p p) ↔ IsPointMass p := <span class="kw">by</span></span>
+<span id="cb18-21"><a href="#cb18-21" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [comp_copy_eq_iff_isDeterministic p hp, isPointMass_iff_isDeterministic]</span>
+<span id="cb18-22"><a href="#cb18-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-23"><a href="#cb18-23" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The same statement entrywise, without the `I ⊗ I ≅ I` reindexing:</span></span>
+<span id="cb18-24"><a href="#cb18-24" aria-hidden="true" tabindex="-1"></a><span class="do">`copied.table == independent.table` iff `p` is a point mass. -/</span></span>
+<span id="cb18-25"><a href="#cb18-25" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> comp_copy_eq_tensor_iff_isPointMass&#39; [Fintype X] [DecidableEq X] (p : State X)</span>
+<span id="cb18-26"><a href="#cb18-26" aria-hidden="true" tabindex="-1"></a>    (hp : Normalised p) :</span>
+<span id="cb18-27"><a href="#cb18-27" aria-hidden="true" tabindex="-1"></a>    (∀ x x&#39;, comp p (copy X) () (x, x&#39;) = tensor p p ((), ()) (x, x&#39;)) ↔ IsPointMass p := <span class="kw">by</span></span>
+<span id="cb18-28"><a href="#cb18-28" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [← comp_copy_eq_tensor_iff_isPointMass p hp]</span>
+<span id="cb18-29"><a href="#cb18-29" aria-hidden="true" tabindex="-1"></a>  <span class="cf">constructor</span></span>
+<span id="cb18-30"><a href="#cb18-30" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">intro</span> h</span>
+<span id="cb18-31"><a href="#cb18-31" aria-hidden="true" tabindex="-1"></a>    <span class="cf">funext</span> u y</span>
+<span id="cb18-32"><a href="#cb18-32" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rcases</span> y <span class="kw">with</span> ⟨x, x&#39;⟩</span>
+<span id="cb18-33"><a href="#cb18-33" aria-hidden="true" tabindex="-1"></a>    <span class="cf">cases</span> u</span>
+<span id="cb18-34"><a href="#cb18-34" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [copy_comp_tensor_apply]</span>
+<span id="cb18-35"><a href="#cb18-35" aria-hidden="true" tabindex="-1"></a>    <span class="cf">exact</span> h x x&#39;</span>
+<span id="cb18-36"><a href="#cb18-36" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">intro</span> h x x&#39;</span>
+<span id="cb18-37"><a href="#cb18-37" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> := congrFun (congrFun h ()) (x, x&#39;)</span>
+<span id="cb18-38"><a href="#cb18-38" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [copy_comp_tensor_apply] <span class="kw">at</span> this</span>
+<span id="cb18-39"><a href="#cb18-39" aria-hidden="true" tabindex="-1"></a>    <span class="cf">exact</span> this</span>
+<span id="cb18-40"><a href="#cb18-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-41"><a href="#cb18-41" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Point masses do satisfy the equation (Julia: `compose(q, mcopy(X)) ≈ otimes(q, q)` for</span></span>
+<span id="cb18-42"><a href="#cb18-42" aria-hidden="true" tabindex="-1"></a><span class="do">`q = point_mass(X, l)`). -/</span></span>
+<span id="cb18-43"><a href="#cb18-43" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> pointMass_comp_copy [Fintype X] [DecidableEq X] (a : X) :</span>
+<span id="cb18-44"><a href="#cb18-44" aria-hidden="true" tabindex="-1"></a>    comp (pointMass a) (copy X) = comp (copy Unit) (tensor (pointMass a) (pointMass a)) :=</span>
+<span id="cb18-45"><a href="#cb18-45" aria-hidden="true" tabindex="-1"></a>  (comp_copy_eq_tensor_iff_isPointMass _ (Normalised.pointMass a)).mpr ⟨a, <span class="kw">fun</span> _ =&gt; rfl⟩</span>
+<span id="cb18-46"><a href="#cb18-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-47"><a href="#cb18-47" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The uniform state on two points is not a point mass, so for it the equation fails</span></span>
+<span id="cb18-48"><a href="#cb18-48" aria-hidden="true" tabindex="-1"></a><span class="do">(the Julia `state(X, [0.2, 0.3, 0.5])` example, in its smallest form). -/</span></span>
+<span id="cb18-49"><a href="#cb18-49" aria-hidden="true" tabindex="-1"></a><span class="kw">example</span> : ¬ IsPointMass (<span class="kw">fun</span> _ _ =&gt; (<span class="dv">1</span> / <span class="dv">2</span> : ℝ) : State (Fin <span class="dv">2</span>)) := <span class="kw">by</span></span>
+<span id="cb18-50"><a href="#cb18-50" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rintro</span> ⟨a, ha⟩</span>
+<span id="cb18-51"><a href="#cb18-51" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> := ha a</span>
+<span id="cb18-52"><a href="#cb18-52" aria-hidden="true" tabindex="-1"></a>  <span class="cf">norm_num</span> <span class="kw">at</span> this</span>
+<span id="cb18-53"><a href="#cb18-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-54"><a href="#cb18-54" aria-hidden="true" tabindex="-1"></a><span class="kw">example</span> :</span>
+<span id="cb18-55"><a href="#cb18-55" aria-hidden="true" tabindex="-1"></a>    comp (<span class="kw">fun</span> _ _ =&gt; (<span class="dv">1</span> / <span class="dv">2</span> : ℝ) : State (Fin <span class="dv">2</span>)) (copy (Fin <span class="dv">2</span>)) ≠</span>
+<span id="cb18-56"><a href="#cb18-56" aria-hidden="true" tabindex="-1"></a>      comp (copy Unit) (tensor (<span class="kw">fun</span> _ _ =&gt; (<span class="dv">1</span> / <span class="dv">2</span> : ℝ)) (<span class="kw">fun</span> _ _ =&gt; (<span class="dv">1</span> / <span class="dv">2</span> : ℝ))) := <span class="kw">by</span></span>
+<span id="cb18-57"><a href="#cb18-57" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [Ne, comp_copy_eq_tensor_iff_isPointMass _ (<span class="kw">fun</span> _ =&gt; <span class="kw">by</span> <span class="cf">simp</span>)]</span>
+<span id="cb18-58"><a href="#cb18-58" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rintro</span> ⟨a, ha⟩</span>
+<span id="cb18-59"><a href="#cb18-59" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> := ha a</span>
+<span id="cb18-60"><a href="#cb18-60" aria-hidden="true" tabindex="-1"></a>  <span class="cf">norm_num</span> <span class="kw">at</span> this</span>
+<span id="cb18-61"><a href="#cb18-61" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-62"><a href="#cb18-62" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> FiniteKernelsProofs.Finite.Kernel</span></code></pre></div>
+<!-- FiniteKernelsProofs/Theory/Correspondence.lean -->
+<h1
+id="finitekernelsproofs.theory.correspondence">FiniteKernelsProofs.Theory.Correspondence</h1>
+<div class="sourceCode" id="cb19"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> Mathlib.CategoryTheory.CopyDiscardCategory.Basic</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> Mathlib.CategoryTheory.CopyDiscardCategory.Deterministic</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> Mathlib.CategoryTheory.MarkovCategory.Basic</span></code></pre></div>
+<p>Dictionary between the GATlab theories used by
+<code>MarkovCategories.jl</code> (<code>src/theory.jl</code>) and
+Mathlib’s <code>CopyDiscardCategory</code> /
+<code>MarkovCategory</code>, with the theorem of the finite model
+(<code>Finite/Kernel.lean</code>, <code>Finite/Laws.lean</code>) that
+instantiates each axiom.</p>
+<p>This module spans two Julia packages: the finite model it
+instantiates the axioms in belongs to <code>FiniteKernels.jl</code>,
+which holds these proofs, while the GATlab side of the dictionary now
+lives in <code>MarkovCategories.jl</code> (its
+<code>src/theory.jl</code> and <code>src/finstoch_model.jl</code>);
+<code>FiniteKernels.jl</code> itself carries no Catlab or GATlab
+dependency and names the same operations <code>compose_kernel</code>,
+<code>tensor_kernel</code>, <code>identity_kernel</code>,
+<code>copy_kernel</code>, <code>discard_kernel</code> and
+<code>swap_kernel</code>.</p>
+<p><code>ThCopyDiscardCategory</code> is
+<code>MarkovCategories.jl</code>’s alias for Catlab’s
+<code>ThMonoidalCategoryWithDiagonals</code>
+(<code>Catlab/src/theories/Monoidal.jl</code>, “Cartesian category”
+section); <code>ThMarkovCategory</code> adds one axiom, the naturality
+of <code>delete</code>.</p>
+<table>
+<colgroup>
+<col style="width: 35%" />
+<col style="width: 27%" />
+<col style="width: 37%" />
+</colgroup>
+<thead>
+<tr>
+<th>GATlab (<code>ThMonoidalCategoryWithDiagonals</code>)</th>
+<th>Mathlib</th>
+<th>Finite model (<code>Kernel.*</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mcopy(A) :: A → A ⊗ A</code>, <code>Δ</code></td>
+<td><code>ComonObj.comul</code>, <code>Δ[X]</code></td>
+<td><code>copy X</code></td>
+</tr>
+<tr>
+<td><code>delete(A) :: A → munit()</code>, <code>◊</code></td>
+<td><code>ComonObj.counit</code>, <code>ε[X]</code></td>
+<td><code>discard X</code></td>
+</tr>
+<tr>
+<td><code>Δ(A) ⋅ (Δ(A) ⊗ id(A)) == Δ(A) ⋅ (id(A) ⊗ Δ(A))</code></td>
+<td><code>ComonObj.comul_assoc</code></td>
+<td><code>copy_assoc</code></td>
+</tr>
+<tr>
+<td><code>Δ(A) ⋅ (◊(A) ⊗ id(A)) == id(A)</code></td>
+<td><code>ComonObj.counit_comul</code></td>
+<td><code>copy_discard_left</code> (<code>_strict</code>)</td>
+</tr>
+<tr>
+<td><code>Δ(A) ⋅ (id(A) ⊗ ◊(A)) == id(A)</code></td>
+<td><code>ComonObj.comul_counit</code></td>
+<td><code>copy_discard_right</code> (<code>_strict</code>)</td>
+</tr>
+<tr>
+<td><code>Δ(A) ⋅ σ(A,A) == Δ(A)</code></td>
+<td><code>IsCommComonObj.comul_comm</code></td>
+<td><code>copy_swap</code></td>
+</tr>
+<tr>
+<td><code>Δ(A⊗B) == (Δ(A) ⊗ Δ(B)) ⋅ (id(A) ⊗ σ(A,B) ⊗ id(B))</code></td>
+<td><code>CopyDiscardCategory.copy_tensor</code></td>
+<td><code>copy_prod</code></td>
+</tr>
+<tr>
+<td><code>◊(A⊗B) == ◊(A) ⊗ ◊(B)</code></td>
+<td><code>CopyDiscardCategory.discard_tensor</code></td>
+<td><code>discard_prod</code></td>
+</tr>
+<tr>
+<td><code>Δ(munit()) == id(munit())</code></td>
+<td><code>CopyDiscardCategory.copy_unit</code></td>
+<td><code>copy_unit</code></td>
+</tr>
+<tr>
+<td><code>◊(munit()) == id(munit())</code></td>
+<td><code>CopyDiscardCategory.discard_unit</code></td>
+<td><code>discard_unit</code></td>
+</tr>
+<tr>
+<td>symmetric monoidal structure
+(<code>ThSymmetricMonoidalCategory</code>)</td>
+<td><code>SymmetricCategory</code> (extended)</td>
+<td><code>comp_tensor</code>, <code>tensor_assoc</code>,
+<code>tensor_unit_*</code>, <code>swap_swap</code>,
+<code>tensor_swap</code>, <code>hexagon</code></td>
+</tr>
+</tbody>
+</table>
+<table>
+<colgroup>
+<col style="width: 35%" />
+<col style="width: 27%" />
+<col style="width: 37%" />
+</colgroup>
+<thead>
+<tr>
+<th>GATlab (<code>ThMarkovCategory</code>)</th>
+<th>Mathlib</th>
+<th>Finite model</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>f ⋅ ◊(B) == ◊(A) ⊣ [f::(A → B)]</code></td>
+<td><code>MarkovCategory.discard_natural</code></td>
+<td><code>comp_discard_eq_discard_iff</code> (holds iff
+<code>Normalised</code>)</td>
+</tr>
+<tr>
+<td><em>(not an axiom)</em> <code>f ⋅ Δ(B) == Δ(A) ⋅ (f ⊗ f)</code></td>
+<td><code>Deterministic f</code> (= <code>IsComonHom f</code>)</td>
+<td><code>comp_copy_eq_iff_isDeterministic</code></td>
+</tr>
+</tbody>
+</table>
+<p>Catlab’s tensor is strict, so the Mathlib associator, unitors and
+<code>tensorμ</code> are identities on the Julia side; in the finite
+model they are the reindexing kernels <code>assoc</code>,
+<code>leftUnitor</code>, …, <code>tensorμ</code>. The generic
+consequences of these axioms (<code>discard_natural</code> as a theorem,
+<code>deterministic_comp</code>, <code>deterministic_copy</code>,
+<code>state_discard</code>) are stated once for the abstract Mathlib
+classes in
+<code>BayesianNetworks.jl/proofs/BayesianNetworksProofs/Markov/Basic.lean</code>
+and are not repeated here. The <code>example</code>s below only check
+that each Mathlib field has the type the table claims.</p>
+<div class="sourceCode" id="cb20"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">namespace</span> FiniteKernelsProofs.Theory</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a><span class="kw">open</span> CategoryTheory MonoidalCategory ComonObj CopyDiscardCategory</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a><span class="kw">universe</span> v u</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a><span class="kw">variable</span> {C : <span class="kw">Type</span> u} [Category.{v} C] [MonoidalCategory.{v} C]</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a><span class="kw">section</span> CopyDiscard</span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a><span class="kw">variable</span> [CopyDiscardCategory C]</span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a><span class="co">-- Commutative comonoid axioms of `ThMonoidalCategoryWithDiagonals`.</span></span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a><span class="kw">example</span> (X : C) : Δ[X] ≫ (X ◁ Δ[X]) = Δ[X] ≫ (Δ[X] ▷ X) ≫ (α_ X X X).hom := comul_assoc X</span>
+<span id="cb20-15"><a href="#cb20-15" aria-hidden="true" tabindex="-1"></a><span class="kw">example</span> (X : C) : Δ[X] ≫ (ε[X] ▷ X) = (λ_ X).inv := counit_comul X</span>
+<span id="cb20-16"><a href="#cb20-16" aria-hidden="true" tabindex="-1"></a><span class="kw">example</span> (X : C) : Δ[X] ≫ (X ◁ ε[X]) = (ρ_ X).inv := comul_counit X</span>
+<span id="cb20-17"><a href="#cb20-17" aria-hidden="true" tabindex="-1"></a><span class="kw">example</span> (X : C) : Δ[X] ≫ (β_ X X).hom = Δ[X] := IsCommComonObj.comul_comm X</span>
+<span id="cb20-18"><a href="#cb20-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-19"><a href="#cb20-19" aria-hidden="true" tabindex="-1"></a><span class="co">-- Coherence axioms.</span></span>
+<span id="cb20-20"><a href="#cb20-20" aria-hidden="true" tabindex="-1"></a><span class="co">-- (`Δ[X ⊗ Y]` must be read with the `CopyDiscardCategory.comonObj` instance, not the generic</span></span>
+<span id="cb20-21"><a href="#cb20-21" aria-hidden="true" tabindex="-1"></a><span class="co">-- tensor product of comonoids `Comon.instComonObjTensorObj`; the axiom says the two agree.)</span></span>
+<span id="cb20-22"><a href="#cb20-22" aria-hidden="true" tabindex="-1"></a><span class="kw">example</span> (X Y : C) :</span>
+<span id="cb20-23"><a href="#cb20-23" aria-hidden="true" tabindex="-1"></a>    <span class="kw">letI</span> : ComonObj (X ⊗ Y) := CopyDiscardCategory.comonObj (X ⊗ Y)</span>
+<span id="cb20-24"><a href="#cb20-24" aria-hidden="true" tabindex="-1"></a>    Δ[X ⊗ Y] = (Δ[X] ⊗ₘ Δ[Y]) ≫ tensorμ X X Y Y := copy_tensor X Y</span>
+<span id="cb20-25"><a href="#cb20-25" aria-hidden="true" tabindex="-1"></a><span class="kw">example</span> (X Y : C) :</span>
+<span id="cb20-26"><a href="#cb20-26" aria-hidden="true" tabindex="-1"></a>    <span class="kw">letI</span> : ComonObj (X ⊗ Y) := CopyDiscardCategory.comonObj (X ⊗ Y)</span>
+<span id="cb20-27"><a href="#cb20-27" aria-hidden="true" tabindex="-1"></a>    ε[X ⊗ Y] = (ε[X] ⊗ₘ ε[Y]) ≫ (λ_ (𝟙_ C)).hom := discard_tensor X Y</span>
+<span id="cb20-28"><a href="#cb20-28" aria-hidden="true" tabindex="-1"></a><span class="kw">example</span> : Δ[𝟙_ C] = (λ_ (𝟙_ C)).inv := copy_unit</span>
+<span id="cb20-29"><a href="#cb20-29" aria-hidden="true" tabindex="-1"></a><span class="kw">example</span> : ε[𝟙_ C] = 𝟙 (𝟙_ C) := discard_unit</span>
+<span id="cb20-30"><a href="#cb20-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-31"><a href="#cb20-31" aria-hidden="true" tabindex="-1"></a><span class="co">-- Copy naturality is not an axiom; it is the definition of `Deterministic`.</span></span>
+<span id="cb20-32"><a href="#cb20-32" aria-hidden="true" tabindex="-1"></a><span class="kw">example</span> {X Y : C} (f : X ⟶ Y) [Deterministic f] : f ≫ Δ[Y] = Δ[X] ≫ (f ⊗ₘ f) :=</span>
+<span id="cb20-33"><a href="#cb20-33" aria-hidden="true" tabindex="-1"></a>  Deterministic.copy_natural f</span>
+<span id="cb20-34"><a href="#cb20-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-35"><a href="#cb20-35" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> CopyDiscard</span>
+<span id="cb20-36"><a href="#cb20-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-37"><a href="#cb20-37" aria-hidden="true" tabindex="-1"></a><span class="kw">section</span> Markov</span>
+<span id="cb20-38"><a href="#cb20-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-39"><a href="#cb20-39" aria-hidden="true" tabindex="-1"></a><span class="kw">variable</span> [MarkovCategory C]</span>
+<span id="cb20-40"><a href="#cb20-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-41"><a href="#cb20-41" aria-hidden="true" tabindex="-1"></a><span class="co">-- The one axiom `ThMarkovCategory` adds.</span></span>
+<span id="cb20-42"><a href="#cb20-42" aria-hidden="true" tabindex="-1"></a><span class="kw">example</span> {X Y : C} (f : X ⟶ Y) : f ≫ ε[Y] = ε[X] := MarkovCategory.discard_natural f</span>
+<span id="cb20-43"><a href="#cb20-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-44"><a href="#cb20-44" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> Markov</span>
+<span id="cb20-45"><a href="#cb20-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-46"><a href="#cb20-46" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> FiniteKernelsProofs.Theory</span></code></pre></div>
+<!-- FiniteKernelsProofs/Roadmap.lean -->
+<h1 id="roadmap-contains-sorry">Roadmap (contains
+<code>sorry</code>)</h1>
+<div class="sourceCode" id="cb21"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> FiniteKernelsProofs.Finite.Laws</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> Mathlib.CategoryTheory.MarkovCategory.Basic</span></code></pre></div>
+<p>Module <code>FiniteKernelsProofs.Roadmap</code>. Statements that are
+<strong>not</strong> part of the default build and are excluded from
+<code>Audit.lean</code> (<code>make roadmap</code> builds this file on
+its own). Everything here that is <code>sorry</code>-free is a candidate
+to move into the default target once it is useful to something
+downstream.</p>
+<ul>
+<li><code>FinStoch</code> with its <code>Category</code> instance
+(stochastic kernels between finite types) is proved from
+<code>Finite/Kernel.lean</code> and is sorry-free.</li>
+<li>The <code>MonoidalCategory</code> and <code>MarkovCategory</code>
+instances are deferred (plan “Lean 4 layer”: do not vendor the open
+Mathlib PR that adds <code>Stoch</code>; a <code>MarkovCategory</code>
+instance on finite types is only worth building when a downstream
+statement needs it). The ingredients are all in
+<code>Finite/Kernel.lean</code> (<code>comp_tensor</code>,
+<code>tensor_assoc</code>, <code>tensor_unit_*</code>,
+<code>hexagon</code>, <code>copy_assoc</code>,
+<code>copy_discard_*</code>, <code>copy_swap</code>,
+<code>copy_prod</code>, <code>discard_prod</code>,
+<code>copy_unit</code>, <code>discard_unit</code>,
+<code>Normalised.comp_discard</code>); what is missing is the
+bookkeeping of whiskerings, the pentagon and triangle identities, and
+the <code>Subtype</code> plumbing.</li>
+</ul>
+<div class="sourceCode" id="cb22"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="kw">namespace</span> FiniteKernelsProofs.Roadmap</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a><span class="kw">open</span> CategoryTheory FiniteKernelsProofs.Finite</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Objects of **FinStoch**: finite types with decidable equality (`FiniteSpace`). -/</span></span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a><span class="kw">structure</span> FinStoch <span class="kw">where</span></span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>  <span class="do">/-- The set of joint states. -/</span></span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>  carrier : <span class="kw">Type</span></span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>  [fintype : Fintype carrier]</span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a>  [decEq : DecidableEq carrier]</span>
+<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-12"><a href="#cb22-12" aria-hidden="true" tabindex="-1"></a><span class="kw">attribute</span> [<span class="kw">instance</span>] FinStoch.fintype FinStoch.decEq</span>
+<span id="cb22-13"><a href="#cb22-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-14"><a href="#cb22-14" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Morphisms are stochastic (nonnegative, normalised) kernels; composition is `compose`. -/</span></span>
+<span id="cb22-15"><a href="#cb22-15" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> : Category FinStoch <span class="kw">where</span></span>
+<span id="cb22-16"><a href="#cb22-16" aria-hidden="true" tabindex="-1"></a>  Hom X Y := {k : Kernel X.carrier Y.carrier // Kernel.Stochastic k}</span>
+<span id="cb22-17"><a href="#cb22-17" aria-hidden="true" tabindex="-1"></a>  id X := ⟨Kernel.idK X.carrier, Kernel.Stochastic.ofFun id⟩</span>
+<span id="cb22-18"><a href="#cb22-18" aria-hidden="true" tabindex="-1"></a>  comp k l := ⟨Kernel.comp k<span class="fl">.1</span> l<span class="fl">.1</span>, k.<span class="fl">2.</span>comp l<span class="fl">.2</span>⟩</span>
+<span id="cb22-19"><a href="#cb22-19" aria-hidden="true" tabindex="-1"></a>  id_comp k := Subtype.ext (Kernel.idK_comp k<span class="fl">.1</span>)</span>
+<span id="cb22-20"><a href="#cb22-20" aria-hidden="true" tabindex="-1"></a>  comp_id k := Subtype.ext (Kernel.comp_idK k<span class="fl">.1</span>)</span>
+<span id="cb22-21"><a href="#cb22-21" aria-hidden="true" tabindex="-1"></a>  assoc k l m := Subtype.ext (Kernel.comp_assoc k<span class="fl">.1</span> l<span class="fl">.1</span> m<span class="fl">.1</span>)</span>
+<span id="cb22-22"><a href="#cb22-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-23"><a href="#cb22-23" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Deferred: the symmetric monoidal structure with `otimes` = `Kernel.tensor`. -/</span></span>
+<span id="cb22-24"><a href="#cb22-24" aria-hidden="true" tabindex="-1"></a><span class="kw">noncomputable</span> <span class="kw">instance</span> : MonoidalCategory FinStoch := <span class="kw">sorry</span></span>
+<span id="cb22-25"><a href="#cb22-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-26"><a href="#cb22-26" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Deferred: the Markov structure with `mcopy` = `Kernel.copy`, `delete` = `Kernel.discard`;</span></span>
+<span id="cb22-27"><a href="#cb22-27" aria-hidden="true" tabindex="-1"></a><span class="do">`discard_natural` would be `Kernel.Normalised.comp_discard`. -/</span></span>
+<span id="cb22-28"><a href="#cb22-28" aria-hidden="true" tabindex="-1"></a><span class="kw">noncomputable</span> <span class="kw">instance</span> : MarkovCategory FinStoch := <span class="kw">sorry</span></span>
+<span id="cb22-29"><a href="#cb22-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-30"><a href="#cb22-30" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> FiniteKernelsProofs.Roadmap</span></code></pre></div>
+</body>
+</html>

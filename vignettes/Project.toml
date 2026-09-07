@@ -1,0 +1,6 @@
+[deps]
+FiniteKernels = "2ee73795-50db-4096-9573-22982ed4949b"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+
+[sources]
+FiniteKernels = {path = ".."}
