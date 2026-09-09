@@ -19,32 +19,41 @@ carries no Catlab or GATlab dependency and names the same operations `compose_ke
 `ThMonoidalCategoryWithDiagonals` (`Catlab/src/theories/Monoidal.jl`, "Cartesian category"
 section); `ThMarkovCategory` adds one axiom, the naturality of `delete`.
 
-| GATlab (`ThMonoidalCategoryWithDiagonals`)                     | Mathlib                                   | Finite model (`Kernel.*`)          |
-|--------------------------------------------|----------------------------------|----------------------------------------------|
-| `mcopy(A) :: A → A ⊗ A`, `Δ`                                   | `ComonObj.comul`, `Δ[X]`                  | `copy X`                           |
-| `delete(A) :: A → munit()`, `◊`                                | `ComonObj.counit`, `ε[X]`                 | `discard X`                        |
-| `Δ(A) ⋅ (Δ(A) ⊗ id(A)) == Δ(A) ⋅ (id(A) ⊗ Δ(A))`               | `ComonObj.comul_assoc`                    | `copy_assoc`                       |
-| `Δ(A) ⋅ (◊(A) ⊗ id(A)) == id(A)`                               | `ComonObj.counit_comul`                   | `copy_discard_left` (`_strict`)    |
-| `Δ(A) ⋅ (id(A) ⊗ ◊(A)) == id(A)`                               | `ComonObj.comul_counit`                   | `copy_discard_right` (`_strict`)   |
-| `Δ(A) ⋅ σ(A,A) == Δ(A)`                                        | `IsCommComonObj.comul_comm`               | `copy_swap`                        |
-| `Δ(A⊗B) == (Δ(A) ⊗ Δ(B)) ⋅ (id(A) ⊗ σ(A,B) ⊗ id(B))`           | `CopyDiscardCategory.copy_tensor`         | `copy_prod`                        |
-| `◊(A⊗B) == ◊(A) ⊗ ◊(B)`                                        | `CopyDiscardCategory.discard_tensor`      | `discard_prod`                     |
-| `Δ(munit()) == id(munit())`                                    | `CopyDiscardCategory.copy_unit`           | `copy_unit`                        |
-| `◊(munit()) == id(munit())`                                    | `CopyDiscardCategory.discard_unit`        | `discard_unit`                     |
-| symmetric monoidal structure (`ThSymmetricMonoidalCategory`)   | `SymmetricCategory` (extended)            | `comp_tensor`, `tensor_assoc`, `tensor_unit_*`, `swap_swap`, `tensor_swap`, `hexagon` |
+### Comonoid structure
 
-| GATlab (`ThMarkovCategory`)                                    | Mathlib                                   | Finite model                       |
-|--------------------------------------------|----------------------------------|----------------------------------------------|
-| `f ⋅ ◊(B) == ◊(A) ⊣ [f::(A → B)]`                              | `MarkovCategory.discard_natural`          | `comp_discard_eq_discard_iff` (holds iff `Normalised`) |
-| *(not an axiom)* `f ⋅ Δ(B) == Δ(A) ⋅ (f ⊗ f)`                  | `Deterministic f` (= `IsComonHom f`)      | `comp_copy_eq_iff_isDeterministic` |
+* Copy `mcopy(A) :: A → A ⊗ A` (`Δ`) is Mathlib's `ComonObj.comul` (`Δ[X]`) and the
+  finite kernel `copy X`; delete is `ComonObj.counit` (`ε[X]`) and `discard X`.
+* Coassociativity `Δ(A) ⋅ (Δ(A) ⊗ id(A)) == Δ(A) ⋅ (id(A) ⊗ Δ(A))` is
+  `ComonObj.comul_assoc`, proved by `Kernel.copy_assoc`.
+* The two counit laws are `ComonObj.counit_comul` and `ComonObj.comul_counit`, proved by
+  `copy_discard_left` and `copy_discard_right` (with `_strict` variants).
+* Cocommutativity `Δ(A) ⋅ σ(A,A) == Δ(A)` is `IsCommComonObj.comul_comm`, proved by `copy_swap`.
+
+### Tensor coherence
+
+* `Δ(A⊗B) == (Δ(A) ⊗ Δ(B)) ⋅ (id(A) ⊗ σ(A,B) ⊗ id(B))` is
+  `CopyDiscardCategory.copy_tensor`, proved by `copy_prod`.
+* `◊(A⊗B) == ◊(A) ⊗ ◊(B)` is `CopyDiscardCategory.discard_tensor`, proved by `discard_prod`.
+* `Δ(munit()) == id(munit())` and `◊(munit()) == id(munit())` are
+  `CopyDiscardCategory.copy_unit` and `CopyDiscardCategory.discard_unit`, proved by
+  `copy_unit` and `discard_unit`.
+* The inherited symmetric monoidal structure corresponds to `SymmetricCategory` and the
+  laws `comp_tensor`, `tensor_assoc`, `tensor_unit_*`, `swap_swap`, `tensor_swap`, `hexagon`.
+
+### The Markov axiom and the non-axiom
+
+* `f ⋅ ◊(B) == ◊(A) ⊣ [f::(A → B)]` is `MarkovCategory.discard_natural`.
+  In the finite model `comp_discard_eq_discard_iff` says it holds exactly when `Normalised`.
+* Copy naturality `f ⋅ Δ(B) == Δ(A) ⋅ (f ⊗ f)` is **not an axiom**: it is the property
+  `Deterministic f` (`IsComonHom f`), characterised by `comp_copy_eq_iff_isDeterministic`.
 
 Catlab's tensor is strict, so the Mathlib associator, unitors and `tensorμ` are identities on the
 Julia side; in the finite model they are the reindexing kernels `assoc`, `leftUnitor`, ...,
 `tensorμ`. The generic consequences of these axioms (`discard_natural` as a theorem,
 `deterministic_comp`, `deterministic_copy`, `state_discard`) are stated once for the abstract
-Mathlib classes in `BayesianNetworks.jl/proofs/BayesianNetworksProofs/Markov/Basic.lean` and
+Mathlib classes in the sibling `BayesianNetworks.jl` proof project's `Markov/Basic.lean` and
 are not repeated here. The `example`s below only check that each Mathlib field has the type
-the table claims.
+the dictionary claims.
 -/
 
 namespace FiniteKernelsProofs.Theory

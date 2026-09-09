@@ -42,6 +42,9 @@ This package depends on: nothing else in the ecosystem. It has no ecosystem sibl
 - `src/copy_discard.jl`: `copy_kernel`, `discard_kernel`, `swap_kernel`.
 - `src/show.jl`: printing. `test/test_{spaces,kernels,laws}.jl`: the suite, seeded RNGs only.
 - `proofs/`: the Lean 4 / Mathlib library `FiniteKernelsProofs`, a finite model of the kernels and their laws.
+  `Theory/FinStoch.lean` constructs the concrete monoidal, symmetric and Markov instances; the two former
+  Roadmap holes are proved. No default or Roadmap target contains an unproved declaration. The instances
+  do not verify Julia arrays or construct a category of open-network syntax.
 
 ## Commands
 

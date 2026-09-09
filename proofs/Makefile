@@ -16,7 +16,7 @@ build:
 audit:
 	lake env lean Audit.lean
 
-# Build the deferred statements (may contain sorry); not part of `build` or `audit`
+# Build the compatibility/remaining-work module; currently contains no unproved declarations
 roadmap:
 	lake build $(LIB).Roadmap
 
@@ -25,10 +25,10 @@ roadmap:
 # Requires pandoc and a TeX distribution with lualatex (TinyTeX or MacTeX); built locally, not
 # in CI. Fonts: STIX Two Text/Math (system or TeX Live) and JuliaMono from ../../fonts/JuliaMono.
 
-# Modules in import (dependency) order, as in $(LIB).lean; Roadmap.lean (contains sorry) last.
+# Modules in import (dependency) order, as in $(LIB).lean; Roadmap.lean last.
 MD_FILES = \
     Basic.md Finite/Kernel.md Finite/Laws.md Theory/Correspondence.md \
-    Roadmap.md
+    Theory/FinStoch.md Roadmap.md
 
 JULIAMONO_DIR = $(abspath ../../fonts/JuliaMono)/
 # pandoc >= 3.8 (older: --highlight-style=tango); lean.xml is our syntax definition (pandoc has none)

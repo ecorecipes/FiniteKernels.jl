@@ -2,3 +2,4 @@ import FiniteKernelsProofs.Basic
 import FiniteKernelsProofs.Finite.Kernel
 import FiniteKernelsProofs.Finite.Laws
 import FiniteKernelsProofs.Theory.Correspondence
+import FiniteKernelsProofs.Theory.FinStoch

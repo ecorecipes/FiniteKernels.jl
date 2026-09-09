@@ -23,7 +23,10 @@ together carry the SPEC section 3.2 names:
 They satisfy the laws of a Markov category [Fritz2020](@cite), whose
 copy-discard fragment is the CD category of [ChoJacobs2019](@cite);
 `test/test_laws.jl` checks them numerically on random kernels and `proofs/`
-proves them in Lean for the finite model. `MarkovCategories.jl` states those
+proves them in Lean for the finite model, including concrete Mathlib monoidal,
+symmetric and Markov category instances. The former Roadmap holes are discharged;
+the development remains an exact finite model, not a verification of the
+floating-point array implementation. `MarkovCategories.jl` states those
 laws as a GATlab theory and registers exactly these functions as a Catlab
 `@instance`, so that they also answer to `compose`, `otimes`, `id`, `mcopy`,
 `delete` and `braid`. This package depends on nothing but `LinearAlgebra` and

@@ -4,26 +4,32 @@
 Lean 4 / Mathlib formalisation accompanying `FiniteKernels.jl` (toolchain
 `leanprover/lean4:v4.30.0`, Mathlib tag `v4.30.0`; ADR 0005). This document is generated from
 the Lean sources by [mdgen](https://github.com/Seasawher/mdgen): the prose is the module
-docstrings and the code blocks are the verbatim, machine-checked sources. Every declaration
-outside the final "Roadmap" section is built by `lake build --wfail` and its axioms are printed
-by `Audit.lean` (only `propext`, `Classical.choice`, `Quot.sound`).
+docstrings and the code blocks are the verbatim, machine-checked sources. Every library module
+is built by `lake build --wfail`; `Audit.lean` prints the axioms of the headline results
+(only `propext`, `Classical.choice`, `Quot.sound`). The Roadmap has no remaining proof holes.
 
 ## What is formalised
 
 `FiniteKernels.jl` implements finite stochastic kernels (`FiniteKernel`, tables in the
-outputs-first layout of ADR 0002), their sequential (`compose`) and parallel (`otimes`)
-composition and the copy/discard/swap structure (`mcopy`, `delete`, `braid`) as an instance of
-the GATlab theory `ThMarkovCategory` (SPEC §5–§6). The plan's "Lean 4 layer" asks for the laws
-of that instance to be proved once, exactly, rather than only pinned numerically in
-`test/test_laws.jl`, and for no Mathlib `MarkovCategory` instance to be built (the open Mathlib
-`Stoch` pull request is not vendored). Accordingly the laws are stated pointwise about kernels.
+outputs-first layout of ADR 0002), their sequential (`compose_kernel`) and parallel
+(`tensor_kernel`) composition and copy/discard/swap operations. `MarkovCategories.jl`
+exposes these as an instance of the GATlab theory `ThMarkovCategory` (SPEC §5–§6).
+The exact kernel equations are proved pointwise and are now bundled into a Mathlib
+`MarkovCategory FinStoch`, including the symmetric monoidal coherence laws. No external
+`Stoch` development is vendored and no correspondence with floating-point code is asserted.
 
-| Part | Module | Content |
-|:--|:-----------------|:-----------------------------------|
-| 1 | `Finite/Kernel.lean` | The finite model `Kernel X Y := X → Y → ℝ` with `comp`, `tensor`, `idK`, `copy`, `discard`, `swap`, `pointMass`, `ofFun`; normalisation and nonnegativity are preserved; the category, symmetric-monoidal and commutative-comonoid laws. |
-| 2 | `Finite/Laws.lean` | The characterisations the Julia tests pin: discard naturality iff normalised; copy naturality iff deterministic; "copy once is not two samples" for states. |
-| 3 | `Theory/Correspondence.lean` | Dictionary GATlab `ThCopyDiscardCategory` / `ThMarkovCategory` ↔ Mathlib `CopyDiscardCategory` / `MarkovCategory` ↔ the finite model, with `example`s checking the type of each Mathlib field. |
-| — | `Roadmap.lean` | `FinStoch` as a Mathlib `Category` (sorry-free) and the deferred monoidal / Markov instances (`sorry`); not in the default target. |
+* `Finite/Kernel.lean`: the finite model `Kernel X Y := X → Y → ℝ`, its operations,
+  preservation of normalisation/nonnegativity, and the category, symmetric-monoidal and
+  commutative-comonoid laws.
+* `Finite/Laws.lean`: discard naturality iff normalised; copy naturality iff deterministic;
+  "copy once is not two samples" for states.
+* `Theory/Correspondence.lean`: the GATlab/Mathlib/finite-kernel dictionary, with examples
+  checking the type of each Mathlib field.
+* `Theory/FinStoch.lean`: concrete Mathlib category, monoidal, symmetric, comonoid and Markov
+  instances; abstract copy naturality iff the kernel is deterministic. Empty objects are
+  permitted without assuming nonexistent maps into them.
+* `Roadmap.lean`: compatibility import and remaining representation questions; no unproved
+  declarations.
 
 ## Correspondence with the Julia API
 
@@ -31,9 +37,9 @@ of that instance to be proved once, exactly, rather than only pinned numerically
 |:--------------|:----------------|
 | `FiniteKernel` table `table[y..., x...]`, `kernel_matrix(k)[y, x]` | `Kernel X Y`, entry `k x y = P(y ∣ x)` |
 | `is_normalized(k)` | `Kernel.Normalised k` |
-| `compose(k, l)` (diagrammatic order) | `Kernel.comp k l` |
-| `otimes(k, l)` | `Kernel.tensor k l` |
-| `id(X)`, `mcopy(X)`, `delete(X)`, `braid(X, Y)` | `idK X`, `copy X`, `discard X`, `swap X Y` |
+| `compose_kernel(k, l)` (diagrammatic order) | `Kernel.comp k l` |
+| `tensor_kernel(k, l)` | `Kernel.tensor k l` |
+| `identity_kernel`, `copy_kernel`, `discard_kernel`, `swap_kernel` | `idK X`, `copy X`, `discard X`, `swap X Y` |
 | `deterministic(X, Y, f)`, `point_mass(X, a)`, `state(X, p)` | `ofFun f`, `pointMass a`, `State X` |
 | testset "category laws" | `comp_assoc`, `idK_comp`, `comp_idK` |
 | testset "monoidal laws" | `comp_tensor`, `tensor_idK`, `tensor_assoc`, `tensor_unit_left`, `tensor_unit_right`, `swap_swap`, `tensor_swap`, `hexagon` |

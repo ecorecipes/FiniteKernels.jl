@@ -13,9 +13,9 @@ A concrete finite model of the structure implemented by `FiniteKernels.jl`
 (`src/kernels.jl`, `src/composition.jl`, `src/copy_discard.jl`): finite stochastic kernels
 between finite types, with sequential composition, tensor product, copy, discard and swap.
 
-No category instance is built here (ADR 0005, plan "Lean 4 layer"); the laws are stated
-directly about kernels, pointwise, with the monoidal structure maps (associator, unitors,
-`tensorμ`) written as *function-reindexing kernels* `ofFun e` for the obvious equivalences.
+The laws here are stated directly about kernels, pointwise, with the monoidal structure maps
+(associator, unitors, `tensorμ`) written as *function-reindexing kernels* `ofFun e` for the
+obvious equivalences. `Theory/FinStoch.lean` packages them into Mathlib category instances.
 
 ## Conventions
 

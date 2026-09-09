@@ -7,26 +7,32 @@
 Lean 4 / Mathlib formalisation accompanying `FiniteKernels.jl` (toolchain
 `leanprover/lean4:v4.30.0`, Mathlib tag `v4.30.0`; ADR 0005). This document is generated from
 the Lean sources by [mdgen](https://github.com/Seasawher/mdgen): the prose is the module
-docstrings and the code blocks are the verbatim, machine-checked sources. Every declaration
-outside the final "Roadmap" section is built by `lake build --wfail` and its axioms are printed
-by `Audit.lean` (only `propext`, `Classical.choice`, `Quot.sound`).
+docstrings and the code blocks are the verbatim, machine-checked sources. Every library module
+is built by `lake build --wfail`; `Audit.lean` prints the axioms of the headline results
+(only `propext`, `Classical.choice`, `Quot.sound`). The Roadmap has no remaining proof holes.
 
 ## What is formalised
 
 `FiniteKernels.jl` implements finite stochastic kernels (`FiniteKernel`, tables in the
-outputs-first layout of ADR 0002), their sequential (`compose`) and parallel (`otimes`)
-composition and the copy/discard/swap structure (`mcopy`, `delete`, `braid`) as an instance of
-the GATlab theory `ThMarkovCategory` (SPEC §5–§6). The plan's "Lean 4 layer" asks for the laws
-of that instance to be proved once, exactly, rather than only pinned numerically in
-`test/test_laws.jl`, and for no Mathlib `MarkovCategory` instance to be built (the open Mathlib
-`Stoch` pull request is not vendored). Accordingly the laws are stated pointwise about kernels.
+outputs-first layout of ADR 0002), their sequential (`compose_kernel`) and parallel
+(`tensor_kernel`) composition and copy/discard/swap operations. `MarkovCategories.jl`
+exposes these as an instance of the GATlab theory `ThMarkovCategory` (SPEC §5–§6).
+The exact kernel equations are proved pointwise and are now bundled into a Mathlib
+`MarkovCategory FinStoch`, including the symmetric monoidal coherence laws. No external
+`Stoch` development is vendored and no correspondence with floating-point code is asserted.
 
-| Part | Module | Content |
-|:--|:-----------------|:-----------------------------------|
-| 1 | `Finite/Kernel.lean` | The finite model `Kernel X Y := X → Y → ℝ` with `comp`, `tensor`, `idK`, `copy`, `discard`, `swap`, `pointMass`, `ofFun`; normalisation and nonnegativity are preserved; the category, symmetric-monoidal and commutative-comonoid laws. |
-| 2 | `Finite/Laws.lean` | The characterisations the Julia tests pin: discard naturality iff normalised; copy naturality iff deterministic; "copy once is not two samples" for states. |
-| 3 | `Theory/Correspondence.lean` | Dictionary GATlab `ThCopyDiscardCategory` / `ThMarkovCategory` ↔ Mathlib `CopyDiscardCategory` / `MarkovCategory` ↔ the finite model, with `example`s checking the type of each Mathlib field. |
-| — | `Roadmap.lean` | `FinStoch` as a Mathlib `Category` (sorry-free) and the deferred monoidal / Markov instances (`sorry`); not in the default target. |
+* `Finite/Kernel.lean`: the finite model `Kernel X Y := X → Y → ℝ`, its operations,
+  preservation of normalisation/nonnegativity, and the category, symmetric-monoidal and
+  commutative-comonoid laws.
+* `Finite/Laws.lean`: discard naturality iff normalised; copy naturality iff deterministic;
+  "copy once is not two samples" for states.
+* `Theory/Correspondence.lean`: the GATlab/Mathlib/finite-kernel dictionary, with examples
+  checking the type of each Mathlib field.
+* `Theory/FinStoch.lean`: concrete Mathlib category, monoidal, symmetric, comonoid and Markov
+  instances; abstract copy naturality iff the kernel is deterministic. Empty objects are
+  permitted without assuming nonexistent maps into them.
+* `Roadmap.lean`: compatibility import and remaining representation questions; no unproved
+  declarations.
 
 ## Correspondence with the Julia API
 
@@ -34,9 +40,9 @@ of that instance to be proved once, exactly, rather than only pinned numerically
 |:--------------|:----------------|
 | `FiniteKernel` table `table[y..., x...]`, `kernel_matrix(k)[y, x]` | `Kernel X Y`, entry `k x y = P(y ∣ x)` |
 | `is_normalized(k)` | `Kernel.Normalised k` |
-| `compose(k, l)` (diagrammatic order) | `Kernel.comp k l` |
-| `otimes(k, l)` | `Kernel.tensor k l` |
-| `id(X)`, `mcopy(X)`, `delete(X)`, `braid(X, Y)` | `idK X`, `copy X`, `discard X`, `swap X Y` |
+| `compose_kernel(k, l)` (diagrammatic order) | `Kernel.comp k l` |
+| `tensor_kernel(k, l)` | `Kernel.tensor k l` |
+| `identity_kernel`, `copy_kernel`, `discard_kernel`, `swap_kernel` | `idK X`, `copy X`, `discard X`, `swap X Y` |
 | `deterministic(X, Y, f)`, `point_mass(X, a)`, `state(X, p)` | `ofFun f`, `pointMass a`, `State X` |
 | testset "category laws" | `comp_assoc`, `idK_comp`, `comp_idK` |
 | testset "monoidal laws" | `comp_tensor`, `tensor_idK`, `tensor_assoc`, `tensor_unit_left`, `tensor_unit_right`, `swap_swap`, `tensor_swap`, `hexagon` |
@@ -79,9 +85,9 @@ A concrete finite model of the structure implemented by `FiniteKernels.jl`
 (`src/kernels.jl`, `src/composition.jl`, `src/copy_discard.jl`): finite stochastic kernels
 between finite types, with sequential composition, tensor product, copy, discard and swap.
 
-No category instance is built here (ADR 0005, plan "Lean 4 layer"); the laws are stated
-directly about kernels, pointwise, with the monoidal structure maps (associator, unitors,
-`tensorμ`) written as *function-reindexing kernels* `ofFun e` for the obvious equivalences.
+The laws here are stated directly about kernels, pointwise, with the monoidal structure maps
+(associator, unitors, `tensorμ`) written as *function-reindexing kernels* `ofFun e` for the
+obvious equivalences. `Theory/FinStoch.lean` packages them into Mathlib category instances.
 
 ## Conventions
 
@@ -764,32 +770,41 @@ carries no Catlab or GATlab dependency and names the same operations `compose_ke
 `ThMonoidalCategoryWithDiagonals` (`Catlab/src/theories/Monoidal.jl`, "Cartesian category"
 section); `ThMarkovCategory` adds one axiom, the naturality of `delete`.
 
-| GATlab (`ThMonoidalCategoryWithDiagonals`)                     | Mathlib                                   | Finite model (`Kernel.*`)          |
-|--------------------------------------------|----------------------------------|----------------------------------------------|
-| `mcopy(A) :: A → A ⊗ A`, `Δ`                                   | `ComonObj.comul`, `Δ[X]`                  | `copy X`                           |
-| `delete(A) :: A → munit()`, `◊`                                | `ComonObj.counit`, `ε[X]`                 | `discard X`                        |
-| `Δ(A) ⋅ (Δ(A) ⊗ id(A)) == Δ(A) ⋅ (id(A) ⊗ Δ(A))`               | `ComonObj.comul_assoc`                    | `copy_assoc`                       |
-| `Δ(A) ⋅ (◊(A) ⊗ id(A)) == id(A)`                               | `ComonObj.counit_comul`                   | `copy_discard_left` (`_strict`)    |
-| `Δ(A) ⋅ (id(A) ⊗ ◊(A)) == id(A)`                               | `ComonObj.comul_counit`                   | `copy_discard_right` (`_strict`)   |
-| `Δ(A) ⋅ σ(A,A) == Δ(A)`                                        | `IsCommComonObj.comul_comm`               | `copy_swap`                        |
-| `Δ(A⊗B) == (Δ(A) ⊗ Δ(B)) ⋅ (id(A) ⊗ σ(A,B) ⊗ id(B))`           | `CopyDiscardCategory.copy_tensor`         | `copy_prod`                        |
-| `◊(A⊗B) == ◊(A) ⊗ ◊(B)`                                        | `CopyDiscardCategory.discard_tensor`      | `discard_prod`                     |
-| `Δ(munit()) == id(munit())`                                    | `CopyDiscardCategory.copy_unit`           | `copy_unit`                        |
-| `◊(munit()) == id(munit())`                                    | `CopyDiscardCategory.discard_unit`        | `discard_unit`                     |
-| symmetric monoidal structure (`ThSymmetricMonoidalCategory`)   | `SymmetricCategory` (extended)            | `comp_tensor`, `tensor_assoc`, `tensor_unit_*`, `swap_swap`, `tensor_swap`, `hexagon` |
+### Comonoid structure
 
-| GATlab (`ThMarkovCategory`)                                    | Mathlib                                   | Finite model                       |
-|--------------------------------------------|----------------------------------|----------------------------------------------|
-| `f ⋅ ◊(B) == ◊(A) ⊣ [f::(A → B)]`                              | `MarkovCategory.discard_natural`          | `comp_discard_eq_discard_iff` (holds iff `Normalised`) |
-| *(not an axiom)* `f ⋅ Δ(B) == Δ(A) ⋅ (f ⊗ f)`                  | `Deterministic f` (= `IsComonHom f`)      | `comp_copy_eq_iff_isDeterministic` |
+* Copy `mcopy(A) :: A → A ⊗ A` (`Δ`) is Mathlib's `ComonObj.comul` (`Δ[X]`) and the
+  finite kernel `copy X`; delete is `ComonObj.counit` (`ε[X]`) and `discard X`.
+* Coassociativity `Δ(A) ⋅ (Δ(A) ⊗ id(A)) == Δ(A) ⋅ (id(A) ⊗ Δ(A))` is
+  `ComonObj.comul_assoc`, proved by `Kernel.copy_assoc`.
+* The two counit laws are `ComonObj.counit_comul` and `ComonObj.comul_counit`, proved by
+  `copy_discard_left` and `copy_discard_right` (with `_strict` variants).
+* Cocommutativity `Δ(A) ⋅ σ(A,A) == Δ(A)` is `IsCommComonObj.comul_comm`, proved by `copy_swap`.
+
+### Tensor coherence
+
+* `Δ(A⊗B) == (Δ(A) ⊗ Δ(B)) ⋅ (id(A) ⊗ σ(A,B) ⊗ id(B))` is
+  `CopyDiscardCategory.copy_tensor`, proved by `copy_prod`.
+* `◊(A⊗B) == ◊(A) ⊗ ◊(B)` is `CopyDiscardCategory.discard_tensor`, proved by `discard_prod`.
+* `Δ(munit()) == id(munit())` and `◊(munit()) == id(munit())` are
+  `CopyDiscardCategory.copy_unit` and `CopyDiscardCategory.discard_unit`, proved by
+  `copy_unit` and `discard_unit`.
+* The inherited symmetric monoidal structure corresponds to `SymmetricCategory` and the
+  laws `comp_tensor`, `tensor_assoc`, `tensor_unit_*`, `swap_swap`, `tensor_swap`, `hexagon`.
+
+### The Markov axiom and the non-axiom
+
+* `f ⋅ ◊(B) == ◊(A) ⊣ [f::(A → B)]` is `MarkovCategory.discard_natural`.
+  In the finite model `comp_discard_eq_discard_iff` says it holds exactly when `Normalised`.
+* Copy naturality `f ⋅ Δ(B) == Δ(A) ⋅ (f ⊗ f)` is **not an axiom**: it is the property
+  `Deterministic f` (`IsComonHom f`), characterised by `comp_copy_eq_iff_isDeterministic`.
 
 Catlab's tensor is strict, so the Mathlib associator, unitors and `tensorμ` are identities on the
 Julia side; in the finite model they are the reindexing kernels `assoc`, `leftUnitor`, ...,
 `tensorμ`. The generic consequences of these axioms (`discard_natural` as a theorem,
 `deterministic_comp`, `deterministic_copy`, `state_discard`) are stated once for the abstract
-Mathlib classes in `BayesianNetworks.jl/proofs/BayesianNetworksProofs/Markov/Basic.lean` and
+Mathlib classes in the sibling `BayesianNetworks.jl` proof project's `Markov/Basic.lean` and
 are not repeated here. The `example`s below only check that each Mathlib field has the type
-the table claims.
+the dictionary claims.
 
 ```lean
 namespace FiniteKernelsProofs.Theory
@@ -841,46 +856,47 @@ end FiniteKernelsProofs.Theory
 ```
 
 
-<!-- FiniteKernelsProofs/Roadmap.lean -->
+<!-- FiniteKernelsProofs/Theory/FinStoch.lean -->
 
-# Roadmap (contains `sorry`)
+# FiniteKernelsProofs.Theory.FinStoch
 
 ```lean
 import FiniteKernelsProofs.Finite.Laws
 import Mathlib.CategoryTheory.MarkovCategory.Basic
 ```
 
-Module `FiniteKernelsProofs.Roadmap`.
-Statements that are **not** part of the default build and are excluded from `Audit.lean`
-(`make roadmap` builds this file on its own). Everything here that is `sorry`-free is a
-candidate to move into the default target once it is useful to something downstream.
+**FinStoch as a Mathlib Markov category** (SPEC §6, §10.3–§10.5).
 
-* `FinStoch` with its `Category` instance (stochastic kernels between finite types) is proved
-  from `Finite/Kernel.lean` and is sorry-free.
-* The `MonoidalCategory` and `MarkovCategory` instances are deferred (plan "Lean 4 layer":
-  do not vendor the open Mathlib PR that adds `Stoch`; a `MarkovCategory` instance on finite
-  types is only worth building when a downstream statement needs it). The ingredients are all
-  in `Finite/Kernel.lean` (`comp_tensor`, `tensor_assoc`, `tensor_unit_*`, `hexagon`,
-  `copy_assoc`, `copy_discard_*`, `copy_swap`, `copy_prod`, `discard_prod`, `copy_unit`,
-  `discard_unit`, `Normalised.comp_discard`); what is missing is the bookkeeping of
-  whiskerings, the pentagon and triangle identities, and the `Subtype` plumbing.
+Objects are finite types, morphisms are nonnegative normalised real kernels, and the tensor
+is the Cartesian product of state types with the independent product of kernels. Empty
+objects are permitted: there is no stochastic map from an inhabited type to an empty type,
+but this is not an obstruction to the category or its Markov structure.
+
+The associators, unitors and symmetry are deterministic reindexings. Their coherence proofs
+reduce to equality of the underlying functions, not to additional axioms. In particular
+copy is **not** assumed natural for arbitrary kernels.
+
+This packages the equations in `Finite/Kernel.lean`; it does not prove a correspondence with
+Julia floating-point arrays, and it does not make open Bayesian-network syntax a category.
 
 ```lean
-namespace FiniteKernelsProofs.Roadmap
+set_option autoImplicit false
 
-open CategoryTheory FiniteKernelsProofs.Finite
+namespace FiniteKernelsProofs
 
-/-- Objects of **FinStoch**: finite types with decidable equality (`FiniteSpace`). -/
+open CategoryTheory Finite
+
+/-- Finite state types with decidable equality, including the empty type. -/
 structure FinStoch where
-  /-- The set of joint states. -/
   carrier : Type
   [fintype : Fintype carrier]
   [decEq : DecidableEq carrier]
 
 attribute [instance] FinStoch.fintype FinStoch.decEq
 
-/-- Morphisms are stochastic (nonnegative, normalised) kernels; composition is `compose`. -/
-instance : Category FinStoch where
+namespace FinStoch
+
+instance instCategory : Category FinStoch where
   Hom X Y := {k : Kernel X.carrier Y.carrier // Kernel.Stochastic k}
   id X := ⟨Kernel.idK X.carrier, Kernel.Stochastic.ofFun id⟩
   comp k l := ⟨Kernel.comp k.1 l.1, k.2.comp l.2⟩
@@ -888,12 +904,178 @@ instance : Category FinStoch where
   comp_id k := Subtype.ext (Kernel.comp_idK k.1)
   assoc k l m := Subtype.ext (Kernel.comp_assoc k.1 l.1 m.1)
 
-/-- Deferred: the symmetric monoidal structure with `otimes` = `Kernel.tensor`. -/
-noncomputable instance : MonoidalCategory FinStoch := sorry
+variable {X Y Z : FinStoch}
 
-/-- Deferred: the Markov structure with `mcopy` = `Kernel.copy`, `delete` = `Kernel.discard`;
-`discard_natural` would be `Kernel.Normalised.comp_discard`. -/
-noncomputable instance : MarkovCategory FinStoch := sorry
+/-- A function induces a stochastic, deterministic morphism. -/
+def det (f : X.carrier → Y.carrier) : X ⟶ Y :=
+  ⟨Kernel.ofFun f, Kernel.Stochastic.ofFun f⟩
+
+/-- A state-space equivalence induces an isomorphism of stochastic kernels. -/
+def isoOfEquiv (e : X.carrier ≃ Y.carrier) : X ≅ Y where
+  hom := det e
+  inv := det e.symm
+  hom_inv_id := Subtype.ext (by
+    change Kernel.comp (Kernel.ofFun e) (Kernel.ofFun e.symm) = Kernel.idK X.carrier
+    rw [Kernel.ofFun_comp_ofFun]
+    exact Kernel.ofFun_congr fun x => e.symm_apply_apply x)
+  inv_hom_id := Subtype.ext (by
+    change Kernel.comp (Kernel.ofFun e.symm) (Kernel.ofFun e) = Kernel.idK Y.carrier
+    rw [Kernel.ofFun_comp_ofFun]
+    exact Kernel.ofFun_congr fun y => e.apply_symm_apply y)
+
+instance instMonoidalCategoryStruct : MonoidalCategoryStruct FinStoch where
+  tensorObj X Y := ⟨X.carrier × Y.carrier⟩
+  tensorUnit := ⟨Unit⟩
+  tensorHom f g := ⟨Kernel.tensor f.1 g.1, f.2.tensor g.2⟩
+  whiskerLeft X _ _ g :=
+    ⟨Kernel.tensor (Kernel.idK X.carrier) g.1, (Kernel.Stochastic.ofFun id).tensor g.2⟩
+  whiskerRight f Y :=
+    ⟨Kernel.tensor f.1 (Kernel.idK Y.carrier), f.2.tensor (Kernel.Stochastic.ofFun id)⟩
+  associator X Y Z := isoOfEquiv (Equiv.prodAssoc X.carrier Y.carrier Z.carrier)
+  leftUnitor X := isoOfEquiv (Equiv.punitProd X.carrier)
+  rightUnitor X := isoOfEquiv (Equiv.prodPUnit X.carrier)
+
+open MonoidalCategory
+
+instance instMonoidalCategory : MonoidalCategory FinStoch :=
+  MonoidalCategory.ofTensorHom
+    (id_tensorHom_id := fun _ _ => Subtype.ext Kernel.tensor_idK)
+    (id_tensorHom := by intros; rfl)
+    (tensorHom_id := by intros; rfl)
+    (tensorHom_comp_tensorHom := fun f g f' g' =>
+      Subtype.ext (Kernel.comp_tensor f.1 g.1 f'.1 g'.1))
+    (associator_naturality := fun f g h => Subtype.ext (Kernel.tensor_assoc f.1 g.1 h.1))
+    (leftUnitor_naturality := fun f => Subtype.ext (Kernel.tensor_unit_left f.1))
+    (rightUnitor_naturality := fun f => Subtype.ext (Kernel.tensor_unit_right f.1))
+    (pentagon := by
+      intro W X Y Z
+      apply Subtype.ext
+      change Kernel.comp (Kernel.tensor (Kernel.ofFun _) (Kernel.idK _))
+        (Kernel.comp (Kernel.ofFun _) (Kernel.tensor (Kernel.idK _) (Kernel.ofFun _))) =
+          Kernel.comp (Kernel.ofFun _) (Kernel.ofFun _)
+      simp only [Kernel.idK, Kernel.tensor_ofFun, Kernel.ofFun_comp_ofFun]
+      rfl)
+    (triangle := by
+      intro X Y
+      apply Subtype.ext
+      change Kernel.comp (Kernel.ofFun _)
+        (Kernel.tensor (Kernel.idK _) (Kernel.ofFun _)) =
+          Kernel.tensor (Kernel.ofFun _) (Kernel.idK _)
+      simp only [Kernel.idK, Kernel.tensor_ofFun, Kernel.ofFun_comp_ofFun]
+      rfl)
+
+instance instSymmetricCategory : SymmetricCategory FinStoch where
+  braiding X Y := isoOfEquiv (Equiv.prodComm X.carrier Y.carrier)
+  braiding_naturality_left := by
+    intro X Y f Z
+    apply Subtype.ext
+    exact Kernel.tensor_swap f.1 (Kernel.idK _)
+  braiding_naturality_right := by
+    intro X Y Z f
+    apply Subtype.ext
+    exact Kernel.tensor_swap (Kernel.idK _) f.1
+  hexagon_forward := by
+    intro X Y Z
+    apply Subtype.ext
+    exact Kernel.hexagon
+  hexagon_reverse := by
+    intro X Y Z
+    apply Subtype.ext
+    change Kernel.comp (Kernel.ofFun _)
+      (Kernel.comp (Kernel.ofFun _) (Kernel.ofFun _)) =
+        Kernel.comp (Kernel.tensor (Kernel.idK _) (Kernel.ofFun _))
+          (Kernel.comp (Kernel.ofFun _) (Kernel.tensor (Kernel.ofFun _) (Kernel.idK _)))
+    simp only [Kernel.idK, Kernel.tensor_ofFun, Kernel.ofFun_comp_ofFun]
+    rfl
+  symmetry := by
+    intro X Y
+    apply Subtype.ext
+    exact Kernel.swap_swap
+
+instance instComonObj (X : FinStoch) : ComonObj X where
+  counit := ⟨Kernel.discard X.carrier, Kernel.Nonneg.discard, Kernel.Normalised.discard⟩
+  comul := det fun x => (x, x)
+  counit_comul := Subtype.ext Kernel.copy_discard_left
+  comul_counit := Subtype.ext Kernel.copy_discard_right
+  comul_assoc := Subtype.ext (by
+    change Kernel.comp (Kernel.copy X.carrier)
+      (Kernel.tensor (Kernel.idK _) (Kernel.copy _)) =
+        Kernel.comp (Kernel.copy X.carrier)
+          (Kernel.comp (Kernel.tensor (Kernel.copy _) (Kernel.idK _)) (Kernel.assoc _ _ _))
+    simpa only [Kernel.comp_assoc] using (Kernel.copy_assoc (X := X.carrier)))
+
+instance instIsCommComonObj (X : FinStoch) : IsCommComonObj X where
+  comul_comm := Subtype.ext Kernel.copy_swap
+
+open scoped ComonObj
+
+/-- The structural `tensorμ` of Mathlib is the middle-swap reindexing kernel. -/
+theorem tensorμ_val (X Y : FinStoch) :
+    (MonoidalCategory.tensorμ X X Y Y).val = Kernel.tensorμ X.carrier Y.carrier := by
+  simp only [MonoidalCategory.tensorμ]
+  change Kernel.comp (Kernel.ofFun _)
+    (Kernel.comp (Kernel.tensor (Kernel.idK _) (Kernel.ofFun _))
+      (Kernel.comp (Kernel.tensor (Kernel.idK _) (Kernel.tensor (Kernel.ofFun _) (Kernel.idK _)))
+        (Kernel.comp (Kernel.tensor (Kernel.idK _) (Kernel.ofFun _)) (Kernel.ofFun _)))) = _
+  simp only [Kernel.idK, Kernel.tensor_ofFun, Kernel.ofFun_comp_ofFun, Kernel.tensorμ]
+  rfl
+
+instance instMarkovCategory : MarkovCategory FinStoch where
+  copy_tensor X Y := Subtype.ext (by
+    change Kernel.copy (X.carrier × Y.carrier) =
+      Kernel.comp (Kernel.tensor (Kernel.copy X.carrier) (Kernel.copy Y.carrier))
+        (MonoidalCategory.tensorμ X X Y Y).val
+    rw [tensorμ_val]
+    exact Kernel.copy_prod)
+  discard_tensor X Y := Subtype.ext Kernel.discard_prod
+  copy_unit := Subtype.ext Kernel.copy_unit
+  discard_unit := Subtype.ext Kernel.discard_unit
+  discard_natural f := Subtype.ext (Kernel.Normalised.comp_discard f.2.2)
+
+/-- The abstract Markov discard law uses exactly the normalisation carried by each hom. -/
+theorem discard_natural (f : X ⟶ Y) : f ≫ ε[Y] = ε[X] :=
+  MarkovCategory.discard_natural f
+
+/-- Copy naturality still characterises deterministic kernels; it is not a Markov axiom. -/
+theorem copy_natural_iff (f : X ⟶ Y) :
+    f ≫ Δ[Y] = Δ[X] ≫ (f ⊗ₘ f) ↔ Kernel.IsDeterministic f.val := by
+  rw [Subtype.ext_iff]
+  exact Kernel.comp_copy_eq_iff_isDeterministic f.1 f.2.2
+
+/-- Empty objects are allowed, but normalisation rules out a map into one from a nonempty
+object. No unmentioned inhabitance assumption is used by the category instances. -/
+theorem no_hom_to_empty [Nonempty X.carrier] [IsEmpty Y.carrier] (f : X ⟶ Y) : False := by
+  obtain ⟨x⟩ := ‹Nonempty X.carrier›
+  have h := f.2.2 x
+  simp at h
+
+end FinStoch
+
+end FiniteKernelsProofs
+```
+
+
+<!-- FiniteKernelsProofs/Roadmap.lean -->
+
+# Roadmap
+
+```lean
+import FiniteKernelsProofs.Theory.FinStoch
+```
+
+The two former holes, `MonoidalCategory FinStoch` and `MarkovCategory FinStoch`, are now
+proved in `Theory/FinStoch.lean`, imported by the default target and included in the axiom
+audit. This compatibility module has no unproved declarations.
+
+Remaining work is a representation bridge to Julia's named axes and floating-point arrays.
+The Mathlib instance by itself does not establish that bridge, and no open-network category
+or semantic functor is constructed here.
+
+```lean
+namespace FiniteKernelsProofs.Roadmap
+
+/-- Compatibility name for the finite stochastic category now in the default library. -/
+abbrev FinStoch := FiniteKernelsProofs.FinStoch
 
 end FiniteKernelsProofs.Roadmap
 ```

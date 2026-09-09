@@ -51,3 +51,16 @@ open FiniteKernelsProofs.Finite.Kernel
 #print axioms comp_copy_eq_tensor_iff_isPointMass
 #print axioms comp_copy_eq_tensor_iff_isPointMass'
 #print axioms pointMass_comp_copy
+
+-- Theory/FinStoch.lean: concrete Mathlib structures and their semantic characterisations
+#print axioms FiniteKernelsProofs.FinStoch.instCategory
+#print axioms FiniteKernelsProofs.FinStoch.isoOfEquiv
+#print axioms FiniteKernelsProofs.FinStoch.instMonoidalCategory
+#print axioms FiniteKernelsProofs.FinStoch.instSymmetricCategory
+#print axioms FiniteKernelsProofs.FinStoch.instComonObj
+#print axioms FiniteKernelsProofs.FinStoch.instIsCommComonObj
+#print axioms FiniteKernelsProofs.FinStoch.tensorμ_val
+#print axioms FiniteKernelsProofs.FinStoch.instMarkovCategory
+#print axioms FiniteKernelsProofs.FinStoch.discard_natural
+#print axioms FiniteKernelsProofs.FinStoch.copy_natural_iff
+#print axioms FiniteKernelsProofs.FinStoch.no_hom_to_empty

@@ -7,7 +7,7 @@ cd proofs
 lake exe cache get   # prebuilt Mathlib oleans (once per Mathlib revision)
 make build           # lake build --wfail: the default target, sorry-free
 make audit           # #print axioms for every main theorem (Audit.lean)
-make roadmap         # builds Roadmap.lean, which is allowed to contain sorry
+make roadmap         # builds the compatibility/remaining-work module (no sorry)
 ```
 
 The dependency checkout is shared with the other ecosystem `proofs/` projects via `packagesDir`
@@ -42,12 +42,13 @@ Module order (`MD_FILES` in the `Makefile`, the import order of `FiniteKernelsPr
 2. `Finite/Kernel.lean`
 3. `Finite/Laws.lean`
 4. `Theory/Correspondence.lean`
-5. `Roadmap.lean` — rendered last as "Roadmap (contains `sorry`)"; not in the default target
+5. `Theory/FinStoch.lean`
+6. `Roadmap.lean` — compatibility import and remaining questions; no unproved declarations
 
 ## What is formalised
 
-`FiniteKernelsProofs/Finite/Kernel.lean` is a concrete finite model of the Julia package, with no
-category-theory instance: `Kernel X Y := X → Y → ℝ` (the entry `k x y` is `P(y | x)`, i.e.
+`FiniteKernelsProofs/Finite/Kernel.lean` is the unbundled concrete finite model; its category
+instances are in `Theory/FinStoch.lean`. `Kernel X Y := X → Y → ℝ` (the entry `k x y` is `P(y | x)`, i.e.
 `table[y..., x...]` in the outputs-first layout of ADR 0002), the predicates `Normalised`
 (`is_normalized`), `Nonneg` and `Stochastic`, and the operations `comp` (`compose`), `tensor`
 (`otimes`), `idK` (`id`), `copy` (`mcopy`/`Δ`), `discard` (`delete`/`◊`), `swap` (`braid`/`σ`),
@@ -79,8 +80,8 @@ Both directions of each `iff` are proved. The other Julia testsets map to `Kerne
 | normalisation is preserved by the constructor checks | `Normalised.comp`, `Normalised.tensor`, `Normalised.ofFun/idK/copy/discard/swap/pointMass`, `Stochastic.comp/tensor` |
 
 `FiniteKernelsProofs/Theory/Correspondence.lean` is a dictionary from the GATlab theory
-(`ThCopyDiscardCategory = ThMonoidalCategoryWithDiagonals`, `ThMarkovCategory`; `src/theory.jl`,
-`test/test_theory.jl`) to the Mathlib fields (`ComonObj.comul_assoc`, `counit_comul`,
+(`ThCopyDiscardCategory = ThMonoidalCategoryWithDiagonals`, `ThMarkovCategory`;
+`MarkovCategories.jl/src/theory.jl` and `test/test_theory.jl`) to the Mathlib fields (`ComonObj.comul_assoc`, `counit_comul`,
 `comul_counit`, `IsCommComonObj.comul_comm`, `CopyDiscardCategory.copy_tensor`,
 `discard_tensor`, `copy_unit`, `discard_unit`, `MarkovCategory.discard_natural`,
 `Deterministic`) and to the theorems above, with `example`s checking the field types.
@@ -90,14 +91,23 @@ The generic consequences of the abstract axioms (`discard_natural` as a theorem,
 `CopyDiscardCategory`/`MarkovCategory` in
 `BayesianNetworks.jl/proofs/BayesianNetworksProofs/Markov/Basic.lean` and are not duplicated here.
 
-## Roadmap (not built by default)
+## Concrete Mathlib instances
 
-`FiniteKernelsProofs/Roadmap.lean` bundles finite types into `FinStoch` with a sorry-free
-`Category` instance (homs are `Stochastic` kernels) and leaves the `MonoidalCategory` and
-`MarkovCategory` instances as `sorry`. All the equations those instances need are already proved
-in `Kernel.lean`; what is missing is the whiskering/pentagon/triangle bookkeeping, which is only
-worth doing once a downstream statement needs the instance (plan "Lean 4 layer": do not vendor
-the open Mathlib `Stoch` PR).
+`Theory/FinStoch.lean` now bundles finite types into `FiniteKernelsProofs.FinStoch` and proves
+the Mathlib `Category`, `MonoidalCategory`, `SymmetricCategory`, `ComonObj`,
+`IsCommComonObj` and `MarkovCategory` instances. Tensor is exactly `Kernel.tensor`;
+the unit is `Unit`; coherence maps are deterministic equivalences. The pentagon, triangle
+and both hexagons reduce to equality of functions. `tensorμ_val` checks that Mathlib's
+structural middle swap is the existing kernel operation.
+
+Every instance is in the default build and audit. `copy_natural_iff` reuses the stochastic
+hom's normalisation to prove that abstract copy naturality holds exactly for deterministic
+kernels: no illicit naturality of copy has been assumed. Empty state types are allowed;
+`no_hom_to_empty` proves why an inhabited type has no morphism into an empty one.
+
+Both former Roadmap holes are discharged. `Roadmap.lean` only preserves the old object name
+as an abbreviation. Still unproved: a bridge to Julia's named axes and floating-point arrays,
+and an open-network syntax category or semantic functor. These are different claims.
 
 ## Design notes
 
