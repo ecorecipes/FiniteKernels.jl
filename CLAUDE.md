@@ -7,8 +7,12 @@ the ecorecipes compositional Bayesian-network ecosystem.
 
 Dependency order (arrows = depends on):
 EcologicalBayesianNetworks → InfluenceDiagrams → BayesianNetworkInference → BayesianNetworks →
-MarkovCategories → FiniteKernels,
-and BayesianNetworks → BayesianNetworkFormats (a Catlab-free leaf).
+FiniteKernels, and BayesianNetworks → BayesianNetworkFormats (a leaf).
+MarkovCategories and CategoricalBayesianNetworks sit off that chain:
+CategoricalBayesianNetworks → MarkovCategories → FiniteKernels, and
+CategoricalBayesianNetworks → BayesianNetworks. Per ADR 0009 the model layer is free of
+Catlab, which is a dependency of exactly those two packages; in particular
+BayesianNetworks does **not** depend on MarkovCategories.
 This package depends on: nothing else in the ecosystem. It has no ecosystem siblings on its path:
 `Project.toml` has no `[sources]` section.
 
