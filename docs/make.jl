@@ -58,5 +58,5 @@ makedocs(;
          plugins=[bib])
 
 "--no-deploy" in ARGS || deploydocs(;
-           repo="github.com/ecorecipes/FiniteKernels.jl.git",
-           devbranch="main")
+                                    repo="github.com/ecorecipes/FiniteKernels.jl.git",
+                                    devbranch="main")
