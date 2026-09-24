@@ -33,7 +33,7 @@ into `compose`, `otimes`, `id`, `mcopy`, `delete` and `braid` — lives in
   a kernel is normalised, and that "copy once" differs from "sample twice" unless the state is a point mass.
 - A Lean 4 / Mathlib development in [`proofs/`](proofs/) proving those laws and constructing concrete
   monoidal, symmetric and Markov category instances on finite stochastic kernels. The former Roadmap
-  holes are discharged; copying remains natural exactly for deterministic kernels. These are exact
+  holes are discharged; copying remains natural exactly for the deterministic normalised kernels. These are exact
   finite-model results, not a verification of Julia's floating-point arrays.
 
 ## Installation

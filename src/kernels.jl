@@ -418,9 +418,16 @@ the variable in an error.
 """
 function state(X::FiniteSpace, probs::AbstractArray{<:Real}; check::Bool=true,
                atol::Real=DEFAULT_ATOL, name::Union{Nothing,Symbol}=nothing)
-    length(probs) == length(X) ||
-        throw(KernelShapeError("state must have one probability per joint state", size(X),
-                               size(probs); name))
+    if ndims(probs) == 1
+        length(probs) == length(X) ||
+            throw(KernelShapeError("state must have one probability per joint state",
+                                   size(X),
+                                   size(probs); name))
+    else
+        size(probs) == size(X) ||
+            throw(KernelShapeError("state given as an array must have the shape of the space",
+                                   size(X), size(probs); name))
+    end
     return FiniteKernel(FiniteSpace(), X, reshape(collect(probs), size(X)); check, atol,
                         name)
 end

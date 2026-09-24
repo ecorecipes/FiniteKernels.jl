@@ -262,6 +262,10 @@
         q = state(tensor_space(X, Y), fill(1 / 6, 2, 3))
         @test size(q.table) == (2, 3)
         @test state(tensor_space(X, Y), fill(1 / 6, 6)) == q
+        # An array argument must have the shape of the space, not merely its length:
+        # a transposed table used to be accepted and silently reshaped.
+        @test_throws KernelShapeError state(tensor_space(X, Y),
+                                            [0.05 0.10; 0.15 0.20; 0.25 0.25])
         @test uniform(tensor_space(X, Y)) ≈ q
         @test point_mass(X, :a1).table == [0.0, 1.0]
         @test dirac(X, :a1) == point_mass(X, :a1)

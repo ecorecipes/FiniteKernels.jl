@@ -21,3 +21,8 @@ rev = "v4.30.0"
 
 [[lean_lib]]
 name = "FiniteKernelsProofs"
+
+[[lean_lib]]
+name = "Shadows"
+srcDir = "."
+globs = ["FiniteKernelsProofs.Shadows.*"]
