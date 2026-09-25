@@ -224,7 +224,7 @@ compose_kernel(k_grass, discard_kernel(G)) ≈ discard_kernel(RS)
 ```
 
 ```{julia}
-u = FiniteKernel(R, G, [0.5 0.5; 1.0 0.5]; check=false)   # second column sums to 1.5
+u = FiniteKernel(R, G, [0.5 0.5; 1.0 0.5]; check=false)   # first column sums to 1.5
 compose_kernel(u, discard_kernel(G)).table, discard_kernel(R).table
 ```
 

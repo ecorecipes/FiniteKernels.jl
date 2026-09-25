@@ -2525,7 +2525,7 @@ vertical-align: -.125em;
 </div>
 </div>
 <div id="44" class="cell" data-execution_count="1">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb42"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a>u <span class="op">=</span> <span class="fu">FiniteKernel</span>(R, G, [<span class="fl">0.5</span> <span class="fl">0.5</span>; <span class="fl">1.0</span> <span class="fl">0.5</span>]; check<span class="op">=</span><span class="cn">false</span>)   <span class="co"># second column sums to 1.5</span></span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb42"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a>u <span class="op">=</span> <span class="fu">FiniteKernel</span>(R, G, [<span class="fl">0.5</span> <span class="fl">0.5</span>; <span class="fl">1.0</span> <span class="fl">0.5</span>]; check<span class="op">=</span><span class="cn">false</span>)   <span class="co"># first column sums to 1.5</span></span>
 <span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a><span class="fu">compose_kernel</span>(u, <span class="fu">discard_kernel</span>(G)).table, <span class="fu">discard_kernel</span>(R).table</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-display" data-execution_count="1">
 <pre><code>([1.5, 1.0], [1.0, 1.0])</code></pre>
