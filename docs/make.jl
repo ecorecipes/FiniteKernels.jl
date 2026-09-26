@@ -48,7 +48,6 @@ makedocs(;
          modules=[FiniteKernels],
          sitename="FiniteKernels.jl",
          authors="Simon Frost",
-         warnonly=[:missing_docs, :cross_references],
          format=Documenter.HTML(;
                                 prettyurls=get(ENV, "CI", "false") == "true",
                                 canonical="https://ecorecipes.github.io/FiniteKernels.jl",
