@@ -39,12 +39,16 @@ This package depends on: nothing else in the ecosystem. It has no ecosystem sibl
 
 ## Layout
 
-- `src/spaces.jl`: `FiniteAxis`, `FiniteSpace`, `tensor_space`, `state_index`, `joint_states`, `InvalidAxisError`.
+- `src/spaces.jl`: `FiniteAxis`, `FiniteSpace`, `tensor_space`, `state_index`, `joint_states`.
+- `src/errors.jl`: the root `FiniteKernelsError` and every exception under it (`InvalidAxisError`,
+  `KernelShapeError`, `KernelEntryError`, `KernelNormalizationError`, `SpaceMismatchError`) with their `showerror`
+  methods (ADR 0013). Included after `spaces.jl`, not first, because `SpaceMismatchError` has `FiniteSpace` fields.
 - `src/kernels.jl`: `FiniteKernel{T,N}` (shape, entry and normalisation checks), `cpt`, `state`, `point_mass`,
-  `uniform`, `deterministic`, `random_kernel`, `kernel_matrix`, `probability`, `is_stochastic`, the kernel exceptions.
+  `uniform`, `deterministic`, `random_kernel`, `kernel_matrix`, `probability`, `is_stochastic`.
 - `src/composition.jl`: `compose_kernel`, `tensor_kernel`, `identity_kernel`, `marginal`, `apply`.
 - `src/copy_discard.jl`: `copy_kernel`, `discard_kernel`, `swap_kernel`.
-- `src/show.jl`: printing. `test/test_{spaces,kernels,laws}.jl`: the suite, seeded RNGs only.
+- `src/show.jl`: printing. `test/test_{spaces,kernels,laws,errors,docstrings}.jl`: the suite, seeded RNGs only;
+  `test_errors.jl` checks that every exception type the package defines subtypes `FiniteKernelsError`.
 - `proofs/`: the Lean 4 / Mathlib library `FiniteKernelsProofs`, a finite model of the kernels and their laws.
   `Theory/FinStoch.lean` constructs the concrete monoidal, symmetric and Markov instances; the two former
   Roadmap holes are proved. No default or Roadmap target contains an unproved declaration. The instances

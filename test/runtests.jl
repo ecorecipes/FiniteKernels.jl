@@ -6,5 +6,6 @@ using Random
     include("test_spaces.jl")
     include("test_kernels.jl")
     include("test_laws.jl")
+    include("test_errors.jl")
     include("test_docstrings.jl")
 end

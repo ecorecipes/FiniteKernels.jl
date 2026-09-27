@@ -1,21 +1,6 @@
 # Finite state spaces: labelled axes and their tensor products.
 
 """
-    InvalidAxisError(name, msg)
-
-Thrown when a [`FiniteAxis`](@ref) is constructed with empty or duplicate labels,
-or when a label is looked up that the axis does not carry.
-"""
-struct InvalidAxisError <: Exception
-    name::Symbol
-    msg::String
-end
-
-function Base.showerror(io::IO, e::InvalidAxisError)
-    return print(io, "InvalidAxisError: axis ", repr(e.name), ": ", e.msg)
-end
-
-"""
     FiniteAxis(name::Symbol, labels::Vector{Symbol})
 
 One finite-valued variable: a name and an ordered list of unique state labels.

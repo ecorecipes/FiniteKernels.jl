@@ -63,7 +63,12 @@ apply
 
 ## Exceptions
 
+Every exception the package defines subtypes the abstract root
+[`FiniteKernelsError`](@ref) (ADR 0013). Invalid arguments and keywords raise
+Base's `ArgumentError`, which is outside it.
+
 ```@docs
+FiniteKernelsError
 InvalidAxisError
 KernelShapeError
 KernelEntryError

@@ -77,7 +77,10 @@ tensor product `tensor_kernel(k, l)` has table axes
 All failures are typed exceptions carrying the offending names, sizes or
 entries: [`InvalidAxisError`](@ref), [`KernelShapeError`](@ref),
 [`KernelEntryError`](@ref), [`KernelNormalizationError`](@ref) and
-[`SpaceMismatchError`](@ref).
+[`SpaceMismatchError`](@ref). All five subtype the abstract root
+[`FiniteKernelsError`](@ref), so `e isa FiniteKernelsError` catches any of
+them; invalid arguments, such as a zero column passed to [`normalize`](@ref),
+raise Base's `ArgumentError` instead (ADR 0013).
 
 A `FiniteKernel` built with the default `check=true` is a morphism of FinStoch:
 its entries are finite and nonnegative (up to `-atol`) and each column sums to

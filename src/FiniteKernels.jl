@@ -49,11 +49,12 @@ export FiniteKernel, is_normalized, is_stochastic, normalize, assert_normalized,
 # Composition and utilities (SPEC section 3.2 names)
 export compose_kernel, tensor_kernel, identity_kernel, copy_kernel, discard_kernel,
        swap_kernel, marginal, apply
-# Exceptions
-export InvalidAxisError, KernelShapeError, KernelEntryError, KernelNormalizationError,
-       SpaceMismatchError
+# Exceptions (ADR 0013): the root and the five concrete types under it
+export FiniteKernelsError, InvalidAxisError, KernelShapeError, KernelEntryError,
+       KernelNormalizationError, SpaceMismatchError
 
 include("spaces.jl")
+include("errors.jl")  # after spaces.jl: SpaceMismatchError has FiniteSpace fields
 include("kernels.jl")
 include("composition.jl")
 include("copy_discard.jl")

@@ -22,8 +22,8 @@ into `compose`, `otimes`, `id`, `mcopy`, `delete` and `braid` — lives in
 - `FiniteAxis` / `FiniteSpace`: labelled finite state spaces with a strictly associative tensor product
   (`tensor_space`) and a unit (`FiniteSpace()`).
 - `FiniteKernel`: stochastic kernels (conditional probability tables) with a checked shape, checked finite
-  nonnegative entries and checked normalisation, and typed errors (`KernelShapeError`, `KernelEntryError`,
-  `KernelNormalizationError`, `SpaceMismatchError`, ...).
+  nonnegative entries and checked normalisation, and typed errors under the root `FiniteKernelsError`
+  (`KernelShapeError`, `KernelEntryError`, `KernelNormalizationError`, `SpaceMismatchError`, ...).
 - One documented conversion, `cpt(parents, child, table)` / `cpt(kernel)`, between the user-facing
   parents-first / child-last layout and the internal outputs-first layout (ADR 0002).
 - The wiring operations under their SPEC section 3.2 names: `compose_kernel`, `tensor_kernel`,
