@@ -44,4 +44,9 @@ theorem backward : Shadow1 → Shadow2 → Candidate := by
   intro h1 h2 X Y _ _ _ _ k hk
   exact ⟨h2 X Y k hk, h1 X Y k⟩
 
+/-- SA-Pass anchor: the cited theorem proves `Candidate` as stated, so a restatement that
+drifts from the proved theorem stops compiling. -/
+theorem anchor : Candidate := fun _ _ _ _ _ _ k hk =>
+  FiniteKernelsProofs.Finite.Kernel.comp_copy_eq_iff_isDeterministic k hk
+
 end FiniteKernelsProofs.Shadows.CopyNatural

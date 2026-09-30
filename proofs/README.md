@@ -106,8 +106,10 @@ kernels: no illicit naturality of copy has been assumed. Empty state types are a
 `no_hom_to_empty` proves why an inhabited type has no morphism into an empty one.
 
 Both former Roadmap holes are discharged. `Roadmap.lean` only preserves the old object name
-as an abbreviation. Still unproved: a bridge to Julia's named axes and floating-point arrays,
-and an open-network syntax category or semantic functor. These are different claims.
+as an abbreviation. Still unproved here: a bridge to Julia's named axes and floating-point
+arrays. The open-network syntax category and its semantic functor into this `FinStoch` are a
+different claim, now proved in `CategoricalBayesianNetworks.jl/proofs/` (`OpenNet.category`,
+`OpenNet.Interpretation.functor`), not in this project.
 
 ## Design notes
 

@@ -1,4 +1,5 @@
 import FiniteKernelsProofs.Finite.Kernel
+import FiniteKernelsProofs.Finite.Laws
 
 /-!
 # SA-Pass shadow module: discard naturality iff normalised
@@ -40,5 +41,10 @@ theorem forward2 : Candidate → Shadow2 := by
 theorem backward : Shadow1 → Shadow2 → Candidate := by
   intro h1 h2 X Y _ k
   exact ⟨h2 X Y k, h1 X Y k⟩
+
+/-- SA-Pass anchor: the cited theorem proves `Candidate` as stated, so a restatement that
+drifts from the proved theorem stops compiling. -/
+theorem anchor : Candidate := fun _ _ _ k =>
+  FiniteKernelsProofs.Finite.Kernel.comp_discard_eq_discard_iff k
 
 end FiniteKernelsProofs.Shadows.DiscardNatural

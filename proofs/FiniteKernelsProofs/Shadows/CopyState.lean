@@ -41,4 +41,9 @@ theorem backward : Shadow1 → Shadow2 → Candidate := by
   obtain ⟨a, rfl⟩ := (isPointMass_iff_exists_pointMass p).mp hpm
   exact h1 X a
 
+/-- SA-Pass anchor: the cited theorem proves `Candidate` as stated, so a restatement that
+drifts from the proved theorem stops compiling. -/
+theorem anchor : Candidate := fun _ _ _ p hp =>
+  FiniteKernelsProofs.Finite.Kernel.comp_copy_eq_tensor_iff_isPointMass p hp
+
 end FiniteKernelsProofs.Shadows.CopyState
