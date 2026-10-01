@@ -28,7 +28,8 @@ roadmap:
 # Modules in import (dependency) order, as in $(LIB).lean; Roadmap.lean last.
 MD_FILES = \
     Basic.md Finite/Kernel.md Finite/Laws.md Theory/Correspondence.md \
-    Theory/FinStoch.md Roadmap.md
+    Theory/FinStoch.md Layout/ColumnMajor.md Layout/KernelLayout.md Layout/Product.md \
+    Roadmap.md
 
 JULIAMONO_DIR = $(abspath ../../fonts/JuliaMono)/
 # pandoc >= 3.8 (older: --highlight-style=tango); lean.xml is our syntax definition (pandoc has none)

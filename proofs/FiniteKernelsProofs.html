@@ -5,7 +5,7 @@
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
   <meta name="author" content="Simon Frost" />
-  <meta name="dcterms.date" content="2026-09-07" />
+  <meta name="dcterms.date" content="2026-09-30" />
   <title>Formal Verification of FiniteKernels.jl</title>
   <style>
     /* Default styles provided by pandoc.
@@ -96,7 +96,7 @@
 <header id="title-block-header">
 <h1 class="title">Formal Verification of FiniteKernels.jl</h1>
 <p class="author">Simon Frost</p>
-<p class="date">2026-09-07</p>
+<p class="date">2026-09-30</p>
 </header>
 <nav id="TOC" role="doc-toc">
 <ul>
@@ -120,6 +120,43 @@ id="toc-finitekernelsproofs.finite.laws">FiniteKernelsProofs.Finite.Laws</a></li
 id="toc-finitekernelsproofs.theory.correspondence">FiniteKernelsProofs.Theory.Correspondence</a></li>
 <li><a href="#finitekernelsproofs.theory.finstoch"
 id="toc-finitekernelsproofs.theory.finstoch">FiniteKernelsProofs.Theory.FinStoch</a></li>
+<li><a href="#column-major-multi-axis-arrays"
+id="toc-column-major-multi-axis-arrays">Column-major multi-axis
+arrays</a>
+<ul>
+<li><a href="#flat-tables" id="toc-flat-tables">Flat tables</a></li>
+</ul></li>
+<li><a
+href="#the-outputs-first-kernel-layout-and-the-parents...-child-cpt-layout"
+id="toc-the-outputs-first-kernel-layout-and-the-parents...-child-cpt-layout">The
+outputs-first kernel layout and the <code>(parents..., child)</code> CPT
+layout</a>
+<ul>
+<li><a href="#outputs-first-kernel-tables"
+id="toc-outputs-first-kernel-tables">Outputs-first kernel
+tables</a></li>
+<li><a href="#the-parents...-child-cpt-layout-and-cpt"
+id="toc-the-parents...-child-cpt-layout-and-cpt">The
+<code>(parents..., child)</code> CPT layout and
+<code>cpt</code></a></li>
+<li><a href="#julias-permutedims-contract"
+id="toc-julias-permutedims-contract">Julia’s <code>permutedims</code>
+contract</a></li>
+<li><a href="#normalisation"
+id="toc-normalisation">Normalisation</a></li>
+</ul></li>
+<li><a href="#the-stride-based-product-of-two-factors"
+id="toc-the-stride-based-product-of-two-factors">The stride-based
+product of two factors</a>
+<ul>
+<li><a href="#coordinates-and-projections"
+id="toc-coordinates-and-projections">Coordinates and
+projections</a></li>
+<li><a href="#strides" id="toc-strides">Strides</a></li>
+<li><a href="#the-odometer-loop-of-_product_into"
+id="toc-the-odometer-loop-of-_product_into">The odometer loop of
+<code>_product_into!</code></a></li>
+</ul></li>
 <li><a href="#roadmap" id="toc-roadmap">Roadmap</a></li>
 </ul>
 </nav>
@@ -1262,25 +1299,1094 @@ class="sourceCode lean"><code class="sourceCode lean"><span id="cb22-1"><a href=
 <span id="cb22-170"><a href="#cb22-170" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> FinStoch</span>
 <span id="cb22-171"><a href="#cb22-171" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb22-172"><a href="#cb22-172" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> FiniteKernelsProofs</span></code></pre></div>
+<!-- FiniteKernelsProofs/Layout/ColumnMajor.lean -->
+<h1 id="column-major-multi-axis-arrays">Column-major multi-axis
+arrays</h1>
+<div class="sourceCode" id="cb23"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> Mathlib.Logic.Equiv.Fin.Basic</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> Mathlib.Algebra.BigOperators.Fin</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> Mathlib.Data.List.Rotate</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> Mathlib.Tactic.Ring</span></code></pre></div>
+<p>Julia stores an <code>Array{T,N}</code> as one flat vector in
+<strong>column-major</strong> order: the first axis varies fastest. This
+module models that storage exactly, with no floating point and values in
+an arbitrary type.</p>
+<ul>
+<li>A shape is a list of axis sizes <code>ns = [n₁, …, n_N]</code>
+(<code>size(table)</code>); <code>MIdx ns</code> is the type of
+in-bounds multi-indices, one <code>Fin nₖ</code> per axis (0-based), and
+<code>ns.prod</code> is <code>length(table)</code>.</li>
+<li><code>lin idx = i₁ + n₁ * (i₂ + n₂ * (i₃ + …))</code> is the 0-based
+linear position. <code>lin_eq_sum_stride</code> gives the stride form
+<code>∑ₖ iₖ * ∏_{j&lt;k} n_j</code>, and
+<code>juliaLinearIndex_coords</code> shows that the 1-based fold
+<code>_linear_index</code> of <code>FiniteKernels.jl</code>
+(<code>src/kernels.jl</code>) computes <code>lin idx + 1</code>.</li>
+<li><code>toFlat ns : MIdx ns ≃ Fin ns.prod</code> has value
+<code>lin</code> (<code>toFlat_val</code>): <strong>the linear index is
+a bijection between multi-indices and flat positions</strong>.
+<code>Tensor α ns := Fin ns.prod → α</code> is a flat table, and
+<code>Tensor.equivFun</code> identifies flat tables with functions of
+the multi-index.</li>
+<li><code>MIdx.append</code> concatenates multi-indices
+(<code>(y..., x...)</code>), and
+<code>lin (append y x) = lin y + ns.prod * lin x</code>
+(<code>lin_append</code>): the flat table of shape <code>ns ++ ms</code>
+is a column-major <code>ns.prod × ms.prod</code> matrix
+(<code>reshape</code>).</li>
+<li><code>MIdx.next</code> is the column-major odometer:
+<code>lin (next idx) = (lin idx + 1) % ns.prod</code>.</li>
+</ul>
+<p>The labels of <code>FiniteAxis</code> are not modelled: an index is a
+label position (<code>label_index</code> minus one). The statements are
+about index arithmetic, not about Julia execution.</p>
+<div class="sourceCode" id="cb24"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="kw">namespace</span> FiniteKernelsProofs.Layout</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a><span class="do">/-- In-bounds multi-indices of a shape, one 0-based coordinate per axis, first axis first. -/</span></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> MIdx : List ℕ → <span class="kw">Type</span></span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>  | [] =&gt; Unit</span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>  | n :: ns =&gt; Fin n × MIdx ns</span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a><span class="kw">namespace</span> MIdx</span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The empty multi-index of the zero-dimensional shape. -/</span></span>
+<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> nil : MIdx [] := ()</span>
+<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-13"><a href="#cb24-13" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Prepend a coordinate on a new first axis. -/</span></span>
+<span id="cb24-14"><a href="#cb24-14" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> cons {n : ℕ} {ns : List ℕ} (i : Fin n) (r : MIdx ns) : MIdx (n :: ns) := (i, r)</span>
+<span id="cb24-15"><a href="#cb24-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-16"><a href="#cb24-16" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The coordinate of the first axis. -/</span></span>
+<span id="cb24-17"><a href="#cb24-17" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> head {n : ℕ} {ns : List ℕ} (idx : MIdx (n :: ns)) : Fin n := Prod.fst idx</span>
+<span id="cb24-18"><a href="#cb24-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-19"><a href="#cb24-19" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The coordinates of the remaining axes. -/</span></span>
+<span id="cb24-20"><a href="#cb24-20" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> tail {n : ℕ} {ns : List ℕ} (idx : MIdx (n :: ns)) : MIdx ns := Prod.snd idx</span>
+<span id="cb24-21"><a href="#cb24-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-22"><a href="#cb24-22" aria-hidden="true" tabindex="-1"></a><span class="at">@[simp]</span> <span class="kw">theorem</span> head_cons {n : ℕ} {ns : List ℕ} (i : Fin n) (r : MIdx ns) :</span>
+<span id="cb24-23"><a href="#cb24-23" aria-hidden="true" tabindex="-1"></a>    head (cons i r) = i := <span class="cf">rfl</span></span>
+<span id="cb24-24"><a href="#cb24-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-25"><a href="#cb24-25" aria-hidden="true" tabindex="-1"></a><span class="at">@[simp]</span> <span class="kw">theorem</span> tail_cons {n : ℕ} {ns : List ℕ} (i : Fin n) (r : MIdx ns) :</span>
+<span id="cb24-26"><a href="#cb24-26" aria-hidden="true" tabindex="-1"></a>    tail (cons i r) = r := <span class="cf">rfl</span></span>
+<span id="cb24-27"><a href="#cb24-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-28"><a href="#cb24-28" aria-hidden="true" tabindex="-1"></a><span class="at">@[simp]</span> <span class="kw">theorem</span> cons_head_tail {n : ℕ} {ns : List ℕ} (idx : MIdx (n :: ns)) :</span>
+<span id="cb24-29"><a href="#cb24-29" aria-hidden="true" tabindex="-1"></a>    cons (head idx) (tail idx) = idx := <span class="cf">rfl</span></span>
+<span id="cb24-30"><a href="#cb24-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-31"><a href="#cb24-31" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> ext_nil (a b : MIdx []) : a = b := <span class="cf">rfl</span></span>
+<span id="cb24-32"><a href="#cb24-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-33"><a href="#cb24-33" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> ext_cons {n : ℕ} {ns : List ℕ} {a b : MIdx (n :: ns)} (h1 : head a = head b)</span>
+<span id="cb24-34"><a href="#cb24-34" aria-hidden="true" tabindex="-1"></a>    (h2 : tail a = tail b) : a = b := Prod.ext h1 h2</span>
+<span id="cb24-35"><a href="#cb24-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-36"><a href="#cb24-36" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> instDecidableEq : (ns : List ℕ) → DecidableEq (MIdx ns)</span>
+<span id="cb24-37"><a href="#cb24-37" aria-hidden="true" tabindex="-1"></a>  | [] =&gt; inferInstanceAs (DecidableEq Unit)</span>
+<span id="cb24-38"><a href="#cb24-38" aria-hidden="true" tabindex="-1"></a>  | n :: ns =&gt; @instDecidableEqProd (Fin n) (MIdx ns) _ (instDecidableEq ns)</span>
+<span id="cb24-39"><a href="#cb24-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-40"><a href="#cb24-40" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The coordinate list `(i₁, …, i_N)` (0-based), as Julia&#39;s `Tuple(CartesianIndex) .- 1`. -/</span></span>
+<span id="cb24-41"><a href="#cb24-41" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> coords : {ns : List ℕ} → MIdx ns → List ℕ</span>
+<span id="cb24-42"><a href="#cb24-42" aria-hidden="true" tabindex="-1"></a>  | [], _ =&gt; []</span>
+<span id="cb24-43"><a href="#cb24-43" aria-hidden="true" tabindex="-1"></a>  | _ :: _, idx =&gt; (head idx : ℕ) :: coords (tail idx)</span>
+<span id="cb24-44"><a href="#cb24-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-45"><a href="#cb24-45" aria-hidden="true" tabindex="-1"></a><span class="at">@[simp]</span> <span class="kw">theorem</span> coords_nil (idx : MIdx []) : coords idx = [] := <span class="cf">rfl</span></span>
+<span id="cb24-46"><a href="#cb24-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-47"><a href="#cb24-47" aria-hidden="true" tabindex="-1"></a><span class="at">@[simp]</span> <span class="kw">theorem</span> coords_cons {n : ℕ} {ns : List ℕ} (i : Fin n) (r : MIdx ns) :</span>
+<span id="cb24-48"><a href="#cb24-48" aria-hidden="true" tabindex="-1"></a>    coords (cons i r) = (i : ℕ) :: coords r := <span class="cf">rfl</span></span>
+<span id="cb24-49"><a href="#cb24-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-50"><a href="#cb24-50" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> length_coords : {ns : List ℕ} → (idx : MIdx ns) → (coords idx).length = ns.length</span>
+<span id="cb24-51"><a href="#cb24-51" aria-hidden="true" tabindex="-1"></a>  | [], _ =&gt; <span class="cf">rfl</span></span>
+<span id="cb24-52"><a href="#cb24-52" aria-hidden="true" tabindex="-1"></a>  | _ :: _, idx =&gt; <span class="kw">by</span> <span class="cf">simp</span> [coords, length_coords (tail idx)]</span>
+<span id="cb24-53"><a href="#cb24-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-54"><a href="#cb24-54" aria-hidden="true" tabindex="-1"></a><span class="do">/-- A multi-index is determined by its coordinate list. -/</span></span>
+<span id="cb24-55"><a href="#cb24-55" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> coords_injective : {ns : List ℕ} → Function.Injective (@coords ns)</span>
+<span id="cb24-56"><a href="#cb24-56" aria-hidden="true" tabindex="-1"></a>  | [], a, b, _ =&gt; ext_nil a b</span>
+<span id="cb24-57"><a href="#cb24-57" aria-hidden="true" tabindex="-1"></a>  | _ :: _, a, b, h =&gt; <span class="kw">by</span></span>
+<span id="cb24-58"><a href="#cb24-58" aria-hidden="true" tabindex="-1"></a>    <span class="cf">simp</span> only [coords, List.cons.injEq] <span class="kw">at</span> h</span>
+<span id="cb24-59"><a href="#cb24-59" aria-hidden="true" tabindex="-1"></a>    <span class="cf">exact</span> ext_cons (Fin.ext h<span class="fl">.1</span>) (coords_injective h<span class="fl">.2</span>)</span>
+<span id="cb24-60"><a href="#cb24-60" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-61"><a href="#cb24-61" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Concatenation `(y..., x...)` of multi-indices. -/</span></span>
+<span id="cb24-62"><a href="#cb24-62" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> append : {ns ms : List ℕ} → MIdx ns → MIdx ms → MIdx (ns ++ ms)</span>
+<span id="cb24-63"><a href="#cb24-63" aria-hidden="true" tabindex="-1"></a>  | [], _, _, x =&gt; x</span>
+<span id="cb24-64"><a href="#cb24-64" aria-hidden="true" tabindex="-1"></a>  | _ :: _, _, y, x =&gt; cons (head y) (append (tail y) x)</span>
+<span id="cb24-65"><a href="#cb24-65" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-66"><a href="#cb24-66" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The prefix of a multi-index on `ns ++ ms`. -/</span></span>
+<span id="cb24-67"><a href="#cb24-67" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fst : {ns ms : List ℕ} → MIdx (ns ++ ms) → MIdx ns</span>
+<span id="cb24-68"><a href="#cb24-68" aria-hidden="true" tabindex="-1"></a>  | [], _, _ =&gt; ()</span>
+<span id="cb24-69"><a href="#cb24-69" aria-hidden="true" tabindex="-1"></a>  | _ :: _, _, z =&gt; cons (head z) (fst (ns := _) (tail z))</span>
+<span id="cb24-70"><a href="#cb24-70" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-71"><a href="#cb24-71" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The suffix of a multi-index on `ns ++ ms`. -/</span></span>
+<span id="cb24-72"><a href="#cb24-72" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> snd : {ns ms : List ℕ} → MIdx (ns ++ ms) → MIdx ms</span>
+<span id="cb24-73"><a href="#cb24-73" aria-hidden="true" tabindex="-1"></a>  | [], _, z =&gt; z</span>
+<span id="cb24-74"><a href="#cb24-74" aria-hidden="true" tabindex="-1"></a>  | _ :: _, _, z =&gt; snd (ns := _) (tail z)</span>
+<span id="cb24-75"><a href="#cb24-75" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-76"><a href="#cb24-76" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> fst_append : {ns ms : List ℕ} → (y : MIdx ns) → (x : MIdx ms) → fst (append y x) = y</span>
+<span id="cb24-77"><a href="#cb24-77" aria-hidden="true" tabindex="-1"></a>  | [], _, _, _ =&gt; <span class="cf">rfl</span></span>
+<span id="cb24-78"><a href="#cb24-78" aria-hidden="true" tabindex="-1"></a>  | _ :: _, _, y, x =&gt; <span class="kw">by</span></span>
+<span id="cb24-79"><a href="#cb24-79" aria-hidden="true" tabindex="-1"></a>    <span class="kw">show</span> cons (head y) (fst (append (tail y) x)) = y</span>
+<span id="cb24-80"><a href="#cb24-80" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [fst_append]; <span class="cf">rfl</span></span>
+<span id="cb24-81"><a href="#cb24-81" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-82"><a href="#cb24-82" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> snd_append : {ns ms : List ℕ} → (y : MIdx ns) → (x : MIdx ms) → snd (append y x) = x</span>
+<span id="cb24-83"><a href="#cb24-83" aria-hidden="true" tabindex="-1"></a>  | [], _, _, _ =&gt; <span class="cf">rfl</span></span>
+<span id="cb24-84"><a href="#cb24-84" aria-hidden="true" tabindex="-1"></a>  | _ :: _, _, y, x =&gt; snd_append (tail y) x</span>
+<span id="cb24-85"><a href="#cb24-85" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-86"><a href="#cb24-86" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> append_fst_snd : {ns ms : List ℕ} → (z : MIdx (ns ++ ms)) → append (fst z) (snd z) = z</span>
+<span id="cb24-87"><a href="#cb24-87" aria-hidden="true" tabindex="-1"></a>  | [], _, _ =&gt; <span class="cf">rfl</span></span>
+<span id="cb24-88"><a href="#cb24-88" aria-hidden="true" tabindex="-1"></a>  | _ :: ns, ms, z =&gt; <span class="kw">by</span></span>
+<span id="cb24-89"><a href="#cb24-89" aria-hidden="true" tabindex="-1"></a>    <span class="kw">show</span> cons (head z) (append (fst (ns := ns) (ms := ms) (tail z)) (snd (tail z))) = z</span>
+<span id="cb24-90"><a href="#cb24-90" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [append_fst_snd]; <span class="cf">rfl</span></span>
+<span id="cb24-91"><a href="#cb24-91" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-92"><a href="#cb24-92" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Multi-indices of `ns ++ ms` are pairs of multi-indices. -/</span></span>
+<span id="cb24-93"><a href="#cb24-93" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> appendEquiv (ns ms : List ℕ) : MIdx ns × MIdx ms ≃ MIdx (ns ++ ms) <span class="kw">where</span></span>
+<span id="cb24-94"><a href="#cb24-94" aria-hidden="true" tabindex="-1"></a>  toFun p := append p<span class="fl">.1</span> p<span class="fl">.2</span></span>
+<span id="cb24-95"><a href="#cb24-95" aria-hidden="true" tabindex="-1"></a>  invFun z := (fst z, snd z)</span>
+<span id="cb24-96"><a href="#cb24-96" aria-hidden="true" tabindex="-1"></a>  left_inv p := <span class="kw">by</span> <span class="cf">simp</span> [fst_append, snd_append]</span>
+<span id="cb24-97"><a href="#cb24-97" aria-hidden="true" tabindex="-1"></a>  right_inv z := append_fst_snd z</span>
+<span id="cb24-98"><a href="#cb24-98" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-99"><a href="#cb24-99" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> coords_append : {ns ms : List ℕ} → (y : MIdx ns) → (x : MIdx ms) →</span>
+<span id="cb24-100"><a href="#cb24-100" aria-hidden="true" tabindex="-1"></a>    coords (append y x) = coords y ++ coords x</span>
+<span id="cb24-101"><a href="#cb24-101" aria-hidden="true" tabindex="-1"></a>  | [], _, _, _ =&gt; <span class="cf">rfl</span></span>
+<span id="cb24-102"><a href="#cb24-102" aria-hidden="true" tabindex="-1"></a>  | _ :: _, _, y, x =&gt; <span class="kw">by</span></span>
+<span id="cb24-103"><a href="#cb24-103" aria-hidden="true" tabindex="-1"></a>    <span class="kw">show</span> (head y : ℕ) :: coords (append (tail y) x) = ((head y : ℕ) :: coords (tail y)) ++ coords x</span>
+<span id="cb24-104"><a href="#cb24-104" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [coords_append]; <span class="cf">rfl</span></span></code></pre></div>
+<h3 id="the-linear-index">The linear index</h3>
+<div class="sourceCode" id="cb25"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The 0-based column-major position: `i₁ + n₁ * (i₂ + n₂ * (…))`. -/</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> lin : {ns : List ℕ} → MIdx ns → ℕ</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>  | [], _ =&gt; <span class="dv">0</span></span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>  | n :: _, idx =&gt; (head idx : ℕ) + n * lin (tail idx)</span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a><span class="at">@[simp]</span> <span class="kw">theorem</span> lin_nil (idx : MIdx []) : lin idx = <span class="dv">0</span> := <span class="cf">rfl</span></span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a><span class="at">@[simp]</span> <span class="kw">theorem</span> lin_cons {n : ℕ} {ns : List ℕ} (i : Fin n) (r : MIdx ns) :</span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a>    lin (cons i r) = i + n * lin r := <span class="cf">rfl</span></span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> lin_lt : {ns : List ℕ} → (idx : MIdx ns) → lin idx &lt; ns.prod</span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a>  | [], _ =&gt; <span class="kw">by</span> <span class="cf">simp</span> [lin]</span>
+<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a>  | n :: _, idx =&gt; <span class="kw">by</span></span>
+<span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> h1 := lin_lt (tail idx)</span>
+<span id="cb25-15"><a href="#cb25-15" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> h2 := (head idx).isLt</span>
+<span id="cb25-16"><a href="#cb25-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">simp</span> only [lin, List.prod_cons]</span>
+<span id="cb25-17"><a href="#cb25-17" aria-hidden="true" tabindex="-1"></a>    <span class="kw">calc</span> (head idx : ℕ) + n * lin (tail idx) &lt; n + n * lin (tail idx) := <span class="kw">by</span> <span class="cf">omega</span></span>
+<span id="cb25-18"><a href="#cb25-18" aria-hidden="true" tabindex="-1"></a>      _ = n * (lin (tail idx) + <span class="dv">1</span>) := <span class="kw">by</span> <span class="cf">ring</span></span>
+<span id="cb25-19"><a href="#cb25-19" aria-hidden="true" tabindex="-1"></a>      _ ≤ n * _ := Nat.mul_le_mul_left _ h1</span>
+<span id="cb25-20"><a href="#cb25-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-21"><a href="#cb25-21" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The column-major stride of axis `k`: the product of the sizes of the axes before it. -/</span></span>
+<span id="cb25-22"><a href="#cb25-22" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> stride (ns : List ℕ) (k : ℕ) : ℕ := (ns.take k).prod</span>
+<span id="cb25-23"><a href="#cb25-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-24"><a href="#cb25-24" aria-hidden="true" tabindex="-1"></a><span class="do">/-- **Stride form of the linear index**: `lin idx = ∑ₖ iₖ * stride k`, with</span></span>
+<span id="cb25-25"><a href="#cb25-25" aria-hidden="true" tabindex="-1"></a><span class="do">`stride k = ∏_{j&lt;k} n_j` (the first axis has stride one). -/</span></span>
+<span id="cb25-26"><a href="#cb25-26" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> lin_eq_sum_stride : {ns : List ℕ} → (idx : MIdx ns) →</span>
+<span id="cb25-27"><a href="#cb25-27" aria-hidden="true" tabindex="-1"></a>    lin idx = ∑ k ∈ Finset.range ns.length, (coords idx).getD k <span class="dv">0</span> * stride ns k</span>
+<span id="cb25-28"><a href="#cb25-28" aria-hidden="true" tabindex="-1"></a>  | [], _ =&gt; <span class="kw">by</span> <span class="cf">simp</span> [lin]</span>
+<span id="cb25-29"><a href="#cb25-29" aria-hidden="true" tabindex="-1"></a>  | n :: ns, idx =&gt; <span class="kw">by</span></span>
+<span id="cb25-30"><a href="#cb25-30" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [<span class="kw">show</span> idx = cons (head idx) (tail idx) <span class="kw">from</span> <span class="cf">rfl</span>, List.length_cons, Finset.sum_range_succ&#39;,</span>
+<span id="cb25-31"><a href="#cb25-31" aria-hidden="true" tabindex="-1"></a>      lin_cons, coords_cons, lin_eq_sum_stride (tail idx), Finset.mul_sum]</span>
+<span id="cb25-32"><a href="#cb25-32" aria-hidden="true" tabindex="-1"></a>    <span class="cf">simp</span> only [List.getD_cons_succ, List.getD_cons_zero, stride, List.take_succ_cons,</span>
+<span id="cb25-33"><a href="#cb25-33" aria-hidden="true" tabindex="-1"></a>      List.prod_cons, List.take_zero, List.prod_nil, mul_one]</span>
+<span id="cb25-34"><a href="#cb25-34" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [add_comm]</span>
+<span id="cb25-35"><a href="#cb25-35" aria-hidden="true" tabindex="-1"></a>    <span class="cf">congr</span> <span class="dv">1</span></span>
+<span id="cb25-36"><a href="#cb25-36" aria-hidden="true" tabindex="-1"></a>    <span class="cf">exact</span> Finset.sum_congr <span class="cf">rfl</span> <span class="kw">fun</span> k _ =&gt; <span class="kw">by</span> <span class="cf">ring</span></span>
+<span id="cb25-37"><a href="#cb25-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-38"><a href="#cb25-38" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The 1-based fold of `_linear_index(dims, idx)` in `FiniteKernels.jl`:</span></span>
+<span id="cb25-39"><a href="#cb25-39" aria-hidden="true" tabindex="-1"></a><span class="do">`lin = 1; stride = 1; for (d, i) in zip(dims, idx); lin += (i - 1) * stride; stride *= d; end`. -/</span></span>
+<span id="cb25-40"><a href="#cb25-40" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> juliaLinearIndex (dims idx : List ℕ) : ℕ :=</span>
+<span id="cb25-41"><a href="#cb25-41" aria-hidden="true" tabindex="-1"></a>  ((dims.zip idx).foldl (<span class="kw">fun</span> acc p =&gt; (acc<span class="fl">.1</span> + (p<span class="fl">.2</span> - <span class="dv">1</span>) * acc<span class="fl">.2</span>, acc<span class="fl">.2</span> * p<span class="fl">.1</span>)) (<span class="dv">1</span>, <span class="dv">1</span>)).<span class="dv">1</span></span>
+<span id="cb25-42"><a href="#cb25-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-43"><a href="#cb25-43" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> foldl_linear : {ns : List ℕ} → (idx : MIdx ns) → (a s : ℕ) →</span>
+<span id="cb25-44"><a href="#cb25-44" aria-hidden="true" tabindex="-1"></a>    (ns.zip ((coords idx).map (· + <span class="dv">1</span>))).foldl</span>
+<span id="cb25-45"><a href="#cb25-45" aria-hidden="true" tabindex="-1"></a>        (<span class="kw">fun</span> acc p =&gt; (acc<span class="fl">.1</span> + (p<span class="fl">.2</span> - <span class="dv">1</span>) * acc<span class="fl">.2</span>, acc<span class="fl">.2</span> * p<span class="fl">.1</span>)) (a, s) =</span>
+<span id="cb25-46"><a href="#cb25-46" aria-hidden="true" tabindex="-1"></a>      (a + s * lin idx, s * ns.prod)</span>
+<span id="cb25-47"><a href="#cb25-47" aria-hidden="true" tabindex="-1"></a>  | [], _, a, s =&gt; <span class="kw">by</span> <span class="cf">simp</span> [lin]</span>
+<span id="cb25-48"><a href="#cb25-48" aria-hidden="true" tabindex="-1"></a>  | n :: ns, idx, a, s =&gt; <span class="kw">by</span></span>
+<span id="cb25-49"><a href="#cb25-49" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [<span class="kw">show</span> idx = cons (head idx) (tail idx) <span class="kw">from</span> <span class="cf">rfl</span>]</span>
+<span id="cb25-50"><a href="#cb25-50" aria-hidden="true" tabindex="-1"></a>    <span class="cf">simp</span> only [coords_cons, List.map_cons, List.zip_cons_cons, List.foldl_cons,</span>
+<span id="cb25-51"><a href="#cb25-51" aria-hidden="true" tabindex="-1"></a>      Nat.add_sub_cancel, lin_cons, List.prod_cons]</span>
+<span id="cb25-52"><a href="#cb25-52" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [foldl_linear (tail idx)]</span>
+<span id="cb25-53"><a href="#cb25-53" aria-hidden="true" tabindex="-1"></a>    <span class="cf">ext</span> &lt;;&gt; <span class="cf">simp</span> only &lt;;&gt; <span class="cf">ring</span></span>
+<span id="cb25-54"><a href="#cb25-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-55"><a href="#cb25-55" aria-hidden="true" tabindex="-1"></a><span class="do">/-- **Julia&#39;s `_linear_index` is the column-major position**, shifted to 1-based. -/</span></span>
+<span id="cb25-56"><a href="#cb25-56" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> juliaLinearIndex_coords {ns : List ℕ} (idx : MIdx ns) :</span>
+<span id="cb25-57"><a href="#cb25-57" aria-hidden="true" tabindex="-1"></a>    juliaLinearIndex ns ((coords idx).map (· + <span class="dv">1</span>)) = lin idx + <span class="dv">1</span> := <span class="kw">by</span></span>
+<span id="cb25-58"><a href="#cb25-58" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> [juliaLinearIndex, foldl_linear, add_comm]</span></code></pre></div>
+<h3 id="the-bijection-with-flat-positions">The bijection with flat
+positions</h3>
+<div class="sourceCode" id="cb26"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Multi-indices of a shape are in bijection with the flat positions `Fin ns.prod`. -/</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> toFlat : (ns : List ℕ) → MIdx ns ≃ Fin ns.prod</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>  | [] =&gt;</span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>    { toFun := <span class="kw">fun</span> _ =&gt; ⟨<span class="dv">0</span>, <span class="kw">by</span> simp⟩</span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>      invFun := <span class="kw">fun</span> _ =&gt; ()</span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>      left_inv := <span class="kw">fun</span> _ =&gt; <span class="cf">rfl</span></span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>      right_inv := <span class="kw">fun</span> p =&gt; Fin.ext (<span class="kw">by</span></span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a>        <span class="kw">have</span> h : (p : ℕ) &lt; <span class="dv">1</span> := p.isLt</span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a>        <span class="kw">show</span> <span class="dv">0</span> = (p : ℕ)</span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a>        <span class="cf">omega</span>) }</span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a>  | n :: ns =&gt;</span>
+<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a>    ((Equiv.prodCongr (Equiv.refl (Fin n)) (toFlat ns)).trans (Equiv.prodComm _ _)).trans</span>
+<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a>      (finProdFinEquiv.trans (finCongr (<span class="kw">by</span> <span class="cf">simp</span> [Nat.mul_comm])))</span>
+<span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a><span class="do">/-- **The flat position of a multi-index is its column-major linear index.** -/</span></span>
+<span id="cb26-16"><a href="#cb26-16" aria-hidden="true" tabindex="-1"></a><span class="at">@[simp]</span> <span class="kw">theorem</span> toFlat_val : {ns : List ℕ} → (idx : MIdx ns) → (toFlat ns idx : ℕ) = lin idx</span>
+<span id="cb26-17"><a href="#cb26-17" aria-hidden="true" tabindex="-1"></a>  | [], _ =&gt; <span class="cf">rfl</span></span>
+<span id="cb26-18"><a href="#cb26-18" aria-hidden="true" tabindex="-1"></a>  | n :: ns, idx =&gt; <span class="kw">by</span></span>
+<span id="cb26-19"><a href="#cb26-19" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> h := toFlat_val (tail idx)</span>
+<span id="cb26-20"><a href="#cb26-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">simp</span> only [toFlat]</span>
+<span id="cb26-21"><a href="#cb26-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [lin]</span>
+<span id="cb26-22"><a href="#cb26-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">exact</span> congrArg _ (congrArg _ h)</span>
+<span id="cb26-23"><a href="#cb26-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-24"><a href="#cb26-24" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> lin_injective {ns : List ℕ} : Function.Injective (@lin ns) := <span class="kw">by</span></span>
+<span id="cb26-25"><a href="#cb26-25" aria-hidden="true" tabindex="-1"></a>  <span class="cf">intro</span> a b h</span>
+<span id="cb26-26"><a href="#cb26-26" aria-hidden="true" tabindex="-1"></a>  <span class="cf">apply</span> (toFlat ns).injective</span>
+<span id="cb26-27"><a href="#cb26-27" aria-hidden="true" tabindex="-1"></a>  <span class="cf">exact</span> Fin.ext (<span class="kw">by</span> <span class="cf">simpa</span> <span class="kw">using</span> h)</span>
+<span id="cb26-28"><a href="#cb26-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-29"><a href="#cb26-29" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> lin_surjective {ns : List ℕ} (p : ℕ) (hp : p &lt; ns.prod) : ∃ idx : MIdx ns, lin idx = p :=</span>
+<span id="cb26-30"><a href="#cb26-30" aria-hidden="true" tabindex="-1"></a>  ⟨(toFlat ns).symm ⟨p, hp⟩, <span class="kw">by</span> <span class="cf">rw</span> [← toFlat_val, Equiv.apply_symm_apply]⟩</span>
+<span id="cb26-31"><a href="#cb26-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-32"><a href="#cb26-32" aria-hidden="true" tabindex="-1"></a><span class="do">/-- **The column-major linear index is a bijection** from multi-indices onto the flat</span></span>
+<span id="cb26-33"><a href="#cb26-33" aria-hidden="true" tabindex="-1"></a><span class="do">positions `Fin ns.prod` (`Fin (prod(size(table)))`). -/</span></span>
+<span id="cb26-34"><a href="#cb26-34" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> linearIndex_bijective (ns : List ℕ) :</span>
+<span id="cb26-35"><a href="#cb26-35" aria-hidden="true" tabindex="-1"></a>    Function.Bijective (<span class="kw">fun</span> idx : MIdx ns =&gt; (⟨lin idx, lin_lt idx⟩ : Fin ns.prod)) := <span class="kw">by</span></span>
+<span id="cb26-36"><a href="#cb26-36" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> h : (<span class="kw">fun</span> idx : MIdx ns =&gt; (⟨lin idx, lin_lt idx⟩ : Fin ns.prod)) = toFlat ns :=</span>
+<span id="cb26-37"><a href="#cb26-37" aria-hidden="true" tabindex="-1"></a>    <span class="cf">funext</span> <span class="kw">fun</span> idx =&gt; Fin.ext (toFlat_val idx).symm</span>
+<span id="cb26-38"><a href="#cb26-38" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [h]</span>
+<span id="cb26-39"><a href="#cb26-39" aria-hidden="true" tabindex="-1"></a>  <span class="cf">exact</span> (toFlat ns).bijective</span>
+<span id="cb26-40"><a href="#cb26-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-41"><a href="#cb26-41" aria-hidden="true" tabindex="-1"></a><span class="kw">instance</span> instFintype (ns : List ℕ) : Fintype (MIdx ns) := Fintype.ofEquiv _ (toFlat ns).symm</span>
+<span id="cb26-42"><a href="#cb26-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-43"><a href="#cb26-43" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> card (ns : List ℕ) : Fintype.card (MIdx ns) = ns.prod := <span class="kw">by</span></span>
+<span id="cb26-44"><a href="#cb26-44" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [Fintype.card_congr (toFlat ns), Fintype.card_fin]</span>
+<span id="cb26-45"><a href="#cb26-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-46"><a href="#cb26-46" aria-hidden="true" tabindex="-1"></a><span class="do">/-- **Concatenated multi-indices**: the flat table of shape `ns ++ ms` is the column-major</span></span>
+<span id="cb26-47"><a href="#cb26-47" aria-hidden="true" tabindex="-1"></a><span class="do">`ns.prod × ms.prod` matrix whose entry `[lin y, lin x]` sits at `lin (y..., x...)`. -/</span></span>
+<span id="cb26-48"><a href="#cb26-48" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> lin_append : {ns ms : List ℕ} → (y : MIdx ns) → (x : MIdx ms) →</span>
+<span id="cb26-49"><a href="#cb26-49" aria-hidden="true" tabindex="-1"></a>    lin (append y x) = lin y + ns.prod * lin x</span>
+<span id="cb26-50"><a href="#cb26-50" aria-hidden="true" tabindex="-1"></a>  | [], _, _, _ =&gt; <span class="kw">by</span> <span class="cf">simp</span> [append]</span>
+<span id="cb26-51"><a href="#cb26-51" aria-hidden="true" tabindex="-1"></a>  | n :: ns, _, y, x =&gt; <span class="kw">by</span></span>
+<span id="cb26-52"><a href="#cb26-52" aria-hidden="true" tabindex="-1"></a>    <span class="kw">show</span> (head y : ℕ) + n * lin (append (tail y) x) = (head y : ℕ) + n * lin (tail y) +</span>
+<span id="cb26-53"><a href="#cb26-53" aria-hidden="true" tabindex="-1"></a>      (n * ns.prod) * lin x</span>
+<span id="cb26-54"><a href="#cb26-54" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [lin_append]</span>
+<span id="cb26-55"><a href="#cb26-55" aria-hidden="true" tabindex="-1"></a>    <span class="cf">ring</span></span></code></pre></div>
+<h3 id="the-column-major-odometer">The column-major odometer</h3>
+<div class="sourceCode" id="cb27"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The next multi-index in column-major order, wrapping to all zeros after the last. -/</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> next : {ns : List ℕ} → MIdx ns → MIdx ns</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>  | [], _ =&gt; ()</span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>  | n :: _, idx =&gt;</span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">if</span> h : (head idx : ℕ) + <span class="dv">1</span> &lt; n <span class="kw">then</span> cons ⟨head idx + <span class="dv">1</span>, h⟩ (tail idx)</span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">else</span> cons ⟨<span class="dv">0</span>, lt_of_le_of_lt (Nat.zero_le _) (head idx).isLt⟩ (next (tail idx))</span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> lin_next : {ns : List ℕ} → (idx : MIdx ns) → lin (next idx) = (lin idx + <span class="dv">1</span>) % ns.prod</span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>  | [], _ =&gt; <span class="kw">by</span> <span class="cf">simp</span> [lin]</span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a>  | n :: ns, idx =&gt; <span class="kw">by</span></span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> hi := (head idx).isLt</span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> hr := lin_lt (tail idx)</span>
+<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">by_cases</span> h : (head idx : ℕ) + <span class="dv">1</span> &lt; n</span>
+<span id="cb27-14"><a href="#cb27-14" aria-hidden="true" tabindex="-1"></a>    · <span class="kw">have</span> hlt : (head idx : ℕ) + n * lin (tail idx) + <span class="dv">1</span> &lt; n * ns.prod :=</span>
+<span id="cb27-15"><a href="#cb27-15" aria-hidden="true" tabindex="-1"></a>        <span class="kw">calc</span> (head idx : ℕ) + n * lin (tail idx) + <span class="dv">1</span> &lt; n + n * lin (tail idx) := <span class="kw">by</span> <span class="cf">omega</span></span>
+<span id="cb27-16"><a href="#cb27-16" aria-hidden="true" tabindex="-1"></a>          _ = n * (lin (tail idx) + <span class="dv">1</span>) := <span class="kw">by</span> <span class="cf">ring</span></span>
+<span id="cb27-17"><a href="#cb27-17" aria-hidden="true" tabindex="-1"></a>          _ ≤ n * ns.prod := Nat.mul_le_mul_left _ hr</span>
+<span id="cb27-18"><a href="#cb27-18" aria-hidden="true" tabindex="-1"></a>      <span class="kw">have</span> hn : next idx = cons ⟨head idx + <span class="dv">1</span>, h⟩ (tail idx) := dif_pos h</span>
+<span id="cb27-19"><a href="#cb27-19" aria-hidden="true" tabindex="-1"></a>      <span class="cf">rw</span> [hn]</span>
+<span id="cb27-20"><a href="#cb27-20" aria-hidden="true" tabindex="-1"></a>      <span class="kw">show</span> ((head idx : ℕ) + <span class="dv">1</span>) + n * lin (tail idx) =</span>
+<span id="cb27-21"><a href="#cb27-21" aria-hidden="true" tabindex="-1"></a>        ((head idx : ℕ) + n * lin (tail idx) + <span class="dv">1</span>) % (n * ns.prod)</span>
+<span id="cb27-22"><a href="#cb27-22" aria-hidden="true" tabindex="-1"></a>      <span class="cf">rw</span> [Nat.mod_eq_of_lt hlt]</span>
+<span id="cb27-23"><a href="#cb27-23" aria-hidden="true" tabindex="-1"></a>      <span class="cf">ring</span></span>
+<span id="cb27-24"><a href="#cb27-24" aria-hidden="true" tabindex="-1"></a>    · <span class="kw">have</span> he : (head idx : ℕ) + <span class="dv">1</span> = n := <span class="kw">by</span> <span class="cf">omega</span></span>
+<span id="cb27-25"><a href="#cb27-25" aria-hidden="true" tabindex="-1"></a>      <span class="kw">have</span> hn : next idx = cons ⟨<span class="dv">0</span>, <span class="kw">by</span> omega⟩ (next (tail idx)) := dif_neg h</span>
+<span id="cb27-26"><a href="#cb27-26" aria-hidden="true" tabindex="-1"></a>      <span class="kw">have</span> hs : (head idx : ℕ) + n * lin (tail idx) + <span class="dv">1</span> = n * (lin (tail idx) + <span class="dv">1</span>) :=</span>
+<span id="cb27-27"><a href="#cb27-27" aria-hidden="true" tabindex="-1"></a>        <span class="kw">calc</span> (head idx : ℕ) + n * lin (tail idx) + <span class="dv">1</span> = ((head idx : ℕ) + <span class="dv">1</span>) + n * lin (tail idx) :=</span>
+<span id="cb27-28"><a href="#cb27-28" aria-hidden="true" tabindex="-1"></a>              <span class="kw">by</span> <span class="cf">ring</span></span>
+<span id="cb27-29"><a href="#cb27-29" aria-hidden="true" tabindex="-1"></a>          _ = n + n * lin (tail idx) := <span class="kw">by</span> <span class="cf">rw</span> [he]</span>
+<span id="cb27-30"><a href="#cb27-30" aria-hidden="true" tabindex="-1"></a>          _ = n * (lin (tail idx) + <span class="dv">1</span>) := <span class="kw">by</span> <span class="cf">ring</span></span>
+<span id="cb27-31"><a href="#cb27-31" aria-hidden="true" tabindex="-1"></a>      <span class="cf">rw</span> [hn]</span>
+<span id="cb27-32"><a href="#cb27-32" aria-hidden="true" tabindex="-1"></a>      <span class="kw">show</span> <span class="dv">0</span> + n * lin (next (tail idx)) =</span>
+<span id="cb27-33"><a href="#cb27-33" aria-hidden="true" tabindex="-1"></a>        ((head idx : ℕ) + n * lin (tail idx) + <span class="dv">1</span>) % (n * ns.prod)</span>
+<span id="cb27-34"><a href="#cb27-34" aria-hidden="true" tabindex="-1"></a>      <span class="cf">rw</span> [lin_next (tail idx), zero_add, hs, Nat.mul_mod_mul_left]</span>
+<span id="cb27-35"><a href="#cb27-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-36"><a href="#cb27-36" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Stepping the odometer `p` times from position zero reaches flat position `p`. -/</span></span>
+<span id="cb27-37"><a href="#cb27-37" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> lin_iterate_next {ns : List ℕ} (z : MIdx ns) (hz : lin z = <span class="dv">0</span>) (p : ℕ) :</span>
+<span id="cb27-38"><a href="#cb27-38" aria-hidden="true" tabindex="-1"></a>    lin (next^[p] z) = p % ns.prod := <span class="kw">by</span></span>
+<span id="cb27-39"><a href="#cb27-39" aria-hidden="true" tabindex="-1"></a>  <span class="cf">induction</span> p <span class="kw">with</span></span>
+<span id="cb27-40"><a href="#cb27-40" aria-hidden="true" tabindex="-1"></a>  | zero =&gt;</span>
+<span id="cb27-41"><a href="#cb27-41" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [Function.iterate_zero, id_eq, hz, Nat.zero_mod]</span>
+<span id="cb27-42"><a href="#cb27-42" aria-hidden="true" tabindex="-1"></a>  | succ p ih =&gt;</span>
+<span id="cb27-43"><a href="#cb27-43" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [Function.iterate_succ_apply&#39;, lin_next, ih, Nat.mod_add_mod]</span>
+<span id="cb27-44"><a href="#cb27-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-45"><a href="#cb27-45" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> MIdx</span></code></pre></div>
+<h2 id="flat-tables">Flat tables</h2>
+<div class="sourceCode" id="cb28"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="do">/-- A flat table of shape `ns`: `length(table) = ns.prod` values in column-major order</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="do">(`vec(table)`). -/</span></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> Tensor (α : <span class="kw">Type</span>) (ns : List ℕ) : <span class="kw">Type</span> := Fin ns.prod → α</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a><span class="kw">namespace</span> Tensor</span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a><span class="kw">variable</span> {α : <span class="kw">Type</span>} {ns : List ℕ}</span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a><span class="do">/-- `table[i₁, …, i_N]`: the value stored at the column-major position of the multi-index. -/</span></span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> get (A : Tensor α ns) (idx : MIdx ns) : α := A (MIdx.toFlat ns idx)</span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The flat table whose entry at every multi-index is `f idx`. -/</span></span>
+<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> ofFun (f : MIdx ns → α) : Tensor α ns := <span class="kw">fun</span> p =&gt; f ((MIdx.toFlat ns).symm p)</span>
+<span id="cb28-14"><a href="#cb28-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-15"><a href="#cb28-15" aria-hidden="true" tabindex="-1"></a><span class="at">@[simp]</span> <span class="kw">theorem</span> get_ofFun (f : MIdx ns → α) (idx : MIdx ns) : get (ofFun f) idx = f idx := <span class="kw">by</span></span>
+<span id="cb28-16"><a href="#cb28-16" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> [get, ofFun]</span>
+<span id="cb28-17"><a href="#cb28-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-18"><a href="#cb28-18" aria-hidden="true" tabindex="-1"></a><span class="at">@[simp]</span> <span class="kw">theorem</span> ofFun_get (A : Tensor α ns) : ofFun (get A) = A := <span class="kw">by</span></span>
+<span id="cb28-19"><a href="#cb28-19" aria-hidden="true" tabindex="-1"></a>  <span class="cf">funext</span> p</span>
+<span id="cb28-20"><a href="#cb28-20" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> [get, ofFun]</span>
+<span id="cb28-21"><a href="#cb28-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-22"><a href="#cb28-22" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> ext_get {A B : Tensor α ns} (h : ∀ idx, get A idx = get B idx) : A = B := <span class="kw">by</span></span>
+<span id="cb28-23"><a href="#cb28-23" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [← ofFun_get A, ← ofFun_get B]</span>
+<span id="cb28-24"><a href="#cb28-24" aria-hidden="true" tabindex="-1"></a>  <span class="cf">exact</span> congrArg ofFun (<span class="cf">funext</span> h)</span>
+<span id="cb28-25"><a href="#cb28-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-26"><a href="#cb28-26" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Flat column-major tables are exactly functions of the multi-index. -/</span></span>
+<span id="cb28-27"><a href="#cb28-27" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> equivFun (α : <span class="kw">Type</span>) (ns : List ℕ) : Tensor α ns ≃ (MIdx ns → α) <span class="kw">where</span></span>
+<span id="cb28-28"><a href="#cb28-28" aria-hidden="true" tabindex="-1"></a>  toFun := get</span>
+<span id="cb28-29"><a href="#cb28-29" aria-hidden="true" tabindex="-1"></a>  invFun := ofFun</span>
+<span id="cb28-30"><a href="#cb28-30" aria-hidden="true" tabindex="-1"></a>  left_inv := ofFun_get</span>
+<span id="cb28-31"><a href="#cb28-31" aria-hidden="true" tabindex="-1"></a>  right_inv f := <span class="cf">funext</span> (get_ofFun f)</span>
+<span id="cb28-32"><a href="#cb28-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-33"><a href="#cb28-33" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Reading the flat position whose 1-based index is Julia&#39;s `_linear_index` fold is `get`. -/</span></span>
+<span id="cb28-34"><a href="#cb28-34" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> get_eq_juliaLinearIndex (A : Tensor α ns) (idx : MIdx ns) (p : Fin ns.prod)</span>
+<span id="cb28-35"><a href="#cb28-35" aria-hidden="true" tabindex="-1"></a>    (hp : (p : ℕ) + <span class="dv">1</span> = MIdx.juliaLinearIndex ns ((MIdx.coords idx).map (· + <span class="dv">1</span>))) :</span>
+<span id="cb28-36"><a href="#cb28-36" aria-hidden="true" tabindex="-1"></a>    get A idx = A p := <span class="kw">by</span></span>
+<span id="cb28-37"><a href="#cb28-37" aria-hidden="true" tabindex="-1"></a>  <span class="cf">unfold</span> get</span>
+<span id="cb28-38"><a href="#cb28-38" aria-hidden="true" tabindex="-1"></a>  <span class="cf">congr</span> <span class="dv">1</span></span>
+<span id="cb28-39"><a href="#cb28-39" aria-hidden="true" tabindex="-1"></a>  <span class="cf">apply</span> Fin.ext</span>
+<span id="cb28-40"><a href="#cb28-40" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [MIdx.toFlat_val]</span>
+<span id="cb28-41"><a href="#cb28-41" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [MIdx.juliaLinearIndex_coords] <span class="kw">at</span> hp</span>
+<span id="cb28-42"><a href="#cb28-42" aria-hidden="true" tabindex="-1"></a>  <span class="cf">omega</span></span>
+<span id="cb28-43"><a href="#cb28-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-44"><a href="#cb28-44" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> Tensor</span>
+<span id="cb28-45"><a href="#cb28-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-46"><a href="#cb28-46" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> FiniteKernelsProofs.Layout</span></code></pre></div>
+<!-- FiniteKernelsProofs/Layout/KernelLayout.lean -->
+<h1
+id="the-outputs-first-kernel-layout-and-the-parents...-child-cpt-layout">The
+outputs-first kernel layout and the <code>(parents..., child)</code> CPT
+layout</h1>
+<div class="sourceCode" id="cb29"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> FiniteKernelsProofs.Layout.ColumnMajor</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> FiniteKernelsProofs.Finite.Kernel</span></code></pre></div>
+<p><code>FiniteKernel.table</code> stores a kernel
+<code>dom → codom</code> <strong>outputs first</strong>:
+<code>size(table) == (size(codom)..., size(dom)...)</code> and
+<code>table[y..., x...] = P(y | x)</code> (ADR 0002). User CPTs are
+<code>(parents..., child)</code>, normalised over the last axis, and
+<code>cpt</code> is the only conversion:
+<code>permutedims(table, (n + 1, 1, …, n))</code> one way,
+<code>permutedims(table, (2, …, n + 1, 1))</code> the other.</p>
+<ul>
+<li><code>KernelTable α cs ds := Tensor α (cs ++ ds)</code>;
+<code>toKernel T x y = table[y..., x...]</code> is a function of the
+input first, the convention of <code>Finite.Kernel</code> (for
+<code>α = ℝ</code> it <em>is</em> a
+<code>Finite.Kernel (MIdx ds) (MIdx cs)</code>), and
+<code>kernelEquiv</code> shows flat outputs-first tables and kernels are
+the same data.</li>
+<li><code>kernelMatrix_toFlat</code>: the flat table read as the
+column-major <code>length(codom) × length(dom)</code> matrix
+(<code>kernel_matrix = reshape(table, …)</code>) has entry
+<code>P(y | x)</code> at row <code>lin y</code>, column
+<code>lin x</code>.</li>
+<li><code>probability_linear</code>: <code>probability(k, y, x)</code>
+reads <code>_linear_index(size(table), (iy..., ix...))</code>, which is
+<code>lin (y..., x...) + 1</code>.</li>
+<li><code>cptToKernel</code> / <code>kernelToCpt</code> model the two
+<code>permutedims</code> calls. They are mutually inverse
+(<code>cptEquiv</code>), so the permutation of flat storage positions
+<code>cptPerm</code> is a bijection, and every entry is preserved:
+<code>toKernel_cptToKernel</code> says that
+<code>P(child = i | parents = x)</code> read from the kernel is the CPT
+entry <code>table[x..., i]</code>. <code>cptToKernel_permutedims</code>
+and <code>kernelToCpt_permutedims</code> show that they satisfy Julia’s
+<code>permutedims(A, perm)</code> contract <code>B[I] = A[J]</code>
+whenever <code>J[perm[k]] = I[k]</code>, for exactly the tuples
+<code>(n + 1, 1, …, n)</code> and <code>(2, …, n + 1, 1)</code> used in
+<code>src/kernels.jl</code>.</li>
+<li><code>normalised_cptToKernel_iff</code>: the kernel is normalised
+iff every CPT row sums to one over the last (child) axis.</li>
+</ul>
+<p>This links layouts and index arithmetic. It does not execute Julia,
+and the values are exact (any type; <code>ℝ</code> for normalisation),
+not IEEE floating point.</p>
+<div class="sourceCode" id="cb30"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="kw">namespace</span> FiniteKernelsProofs.Layout</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a><span class="kw">open</span> MIdx</span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a><span class="kw">variable</span> {α : <span class="kw">Type</span>}</span></code></pre></div>
+<h2 id="outputs-first-kernel-tables">Outputs-first kernel tables</h2>
+<div class="sourceCode" id="cb31"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="do">/-- `FiniteKernel.table` for codomain shape `cs` and domain shape `ds`: outputs first. -/</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="kw">abbrev</span> KernelTable (α : <span class="kw">Type</span>) (cs ds : List ℕ) : <span class="kw">Type</span> := Tensor α (cs ++ ds)</span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a><span class="kw">namespace</span> KernelTable</span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a><span class="kw">variable</span> {cs ds : List ℕ}</span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a><span class="do">/-- `table[y..., x...]`. -/</span></span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> entry (T : KernelTable α cs ds) (y : MIdx cs) (x : MIdx ds) : α := Tensor.get T (append y x)</span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The kernel stored by an outputs-first table, input first: `toKernel T x y = P(y | x)`. -/</span></span>
+<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> toKernel (T : KernelTable α cs ds) : MIdx ds → MIdx cs → α := <span class="kw">fun</span> x y =&gt; T.entry y x</span>
+<span id="cb31-13"><a href="#cb31-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-14"><a href="#cb31-14" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The outputs-first table of a kernel. -/</span></span>
+<span id="cb31-15"><a href="#cb31-15" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> ofKernel (k : MIdx ds → MIdx cs → α) : KernelTable α cs ds :=</span>
+<span id="cb31-16"><a href="#cb31-16" aria-hidden="true" tabindex="-1"></a>  Tensor.ofFun <span class="kw">fun</span> z =&gt; k (snd z) (fst z)</span>
+<span id="cb31-17"><a href="#cb31-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-18"><a href="#cb31-18" aria-hidden="true" tabindex="-1"></a><span class="at">@[simp]</span> <span class="kw">theorem</span> toKernel_ofKernel (k : MIdx ds → MIdx cs → α) : toKernel (ofKernel k) = k := <span class="kw">by</span></span>
+<span id="cb31-19"><a href="#cb31-19" aria-hidden="true" tabindex="-1"></a>  <span class="cf">funext</span> x y</span>
+<span id="cb31-20"><a href="#cb31-20" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> [toKernel, ofKernel, entry, fst_append, snd_append]</span>
+<span id="cb31-21"><a href="#cb31-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-22"><a href="#cb31-22" aria-hidden="true" tabindex="-1"></a><span class="at">@[simp]</span> <span class="kw">theorem</span> ofKernel_toKernel (T : KernelTable α cs ds) : ofKernel (toKernel T) = T := <span class="kw">by</span></span>
+<span id="cb31-23"><a href="#cb31-23" aria-hidden="true" tabindex="-1"></a>  <span class="cf">apply</span> Tensor.ext_get</span>
+<span id="cb31-24"><a href="#cb31-24" aria-hidden="true" tabindex="-1"></a>  <span class="cf">intro</span> z</span>
+<span id="cb31-25"><a href="#cb31-25" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> [toKernel, ofKernel, entry, append_fst_snd]</span>
+<span id="cb31-26"><a href="#cb31-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-27"><a href="#cb31-27" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Flat outputs-first tables and kernels (input first) are the same data. -/</span></span>
+<span id="cb31-28"><a href="#cb31-28" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> kernelEquiv (α : <span class="kw">Type</span>) (cs ds : List ℕ) :</span>
+<span id="cb31-29"><a href="#cb31-29" aria-hidden="true" tabindex="-1"></a>    KernelTable α cs ds ≃ (MIdx ds → MIdx cs → α) <span class="kw">where</span></span>
+<span id="cb31-30"><a href="#cb31-30" aria-hidden="true" tabindex="-1"></a>  toFun := toKernel</span>
+<span id="cb31-31"><a href="#cb31-31" aria-hidden="true" tabindex="-1"></a>  invFun := ofKernel</span>
+<span id="cb31-32"><a href="#cb31-32" aria-hidden="true" tabindex="-1"></a>  left_inv := ofKernel_toKernel</span>
+<span id="cb31-33"><a href="#cb31-33" aria-hidden="true" tabindex="-1"></a>  right_inv := toKernel_ofKernel</span>
+<span id="cb31-34"><a href="#cb31-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-35"><a href="#cb31-35" aria-hidden="true" tabindex="-1"></a><span class="do">/-- For real entries the stored kernel is a kernel of the finite model `Finite.Kernel`. -/</span></span>
+<span id="cb31-36"><a href="#cb31-36" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> toFiniteKernel (T : KernelTable ℝ cs ds) : Finite.Kernel (MIdx ds) (MIdx cs) := toKernel T</span>
+<span id="cb31-37"><a href="#cb31-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-38"><a href="#cb31-38" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> prod_append (cs ds : List ℕ) : (cs ++ ds).prod = cs.prod * ds.prod := List.prod_append</span>
+<span id="cb31-39"><a href="#cb31-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-40"><a href="#cb31-40" aria-hidden="true" tabindex="-1"></a><span class="do">/-- `kernel_matrix(k) = reshape(table, length(codom), length(dom))`, read column-major. -/</span></span>
+<span id="cb31-41"><a href="#cb31-41" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> kernelMatrix (T : KernelTable α cs ds) (r : Fin cs.prod) (c : Fin ds.prod) : α :=</span>
+<span id="cb31-42"><a href="#cb31-42" aria-hidden="true" tabindex="-1"></a>  T ⟨r + cs.prod * c, <span class="kw">by</span></span>
+<span id="cb31-43"><a href="#cb31-43" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [prod_append]</span>
+<span id="cb31-44"><a href="#cb31-44" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> hr := r.isLt</span>
+<span id="cb31-45"><a href="#cb31-45" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> hc := c.isLt</span>
+<span id="cb31-46"><a href="#cb31-46" aria-hidden="true" tabindex="-1"></a>    <span class="kw">calc</span> (r : ℕ) + cs.prod * c &lt; cs.prod + cs.prod * c := <span class="kw">by</span> <span class="cf">omega</span></span>
+<span id="cb31-47"><a href="#cb31-47" aria-hidden="true" tabindex="-1"></a>      _ = cs.prod * (c + <span class="dv">1</span>) := <span class="kw">by</span> <span class="cf">ring</span></span>
+<span id="cb31-48"><a href="#cb31-48" aria-hidden="true" tabindex="-1"></a>      _ ≤ cs.prod * ds.prod := Nat.mul_le_mul_left _ hc⟩</span>
+<span id="cb31-49"><a href="#cb31-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-50"><a href="#cb31-50" aria-hidden="true" tabindex="-1"></a><span class="do">/-- **`kernel_matrix` has `P(y | x)` at row `lin y`, column `lin x`.** -/</span></span>
+<span id="cb31-51"><a href="#cb31-51" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> kernelMatrix_toFlat (T : KernelTable α cs ds) (y : MIdx cs) (x : MIdx ds) :</span>
+<span id="cb31-52"><a href="#cb31-52" aria-hidden="true" tabindex="-1"></a>    kernelMatrix T (toFlat cs y) (toFlat ds x) = T.entry y x := <span class="kw">by</span></span>
+<span id="cb31-53"><a href="#cb31-53" aria-hidden="true" tabindex="-1"></a>  <span class="cf">unfold</span> kernelMatrix entry Tensor.get</span>
+<span id="cb31-54"><a href="#cb31-54" aria-hidden="true" tabindex="-1"></a>  <span class="cf">congr</span> <span class="dv">1</span></span>
+<span id="cb31-55"><a href="#cb31-55" aria-hidden="true" tabindex="-1"></a>  <span class="cf">apply</span> Fin.ext</span>
+<span id="cb31-56"><a href="#cb31-56" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> [lin_append]</span>
+<span id="cb31-57"><a href="#cb31-57" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-58"><a href="#cb31-58" aria-hidden="true" tabindex="-1"></a><span class="do">/-- **`probability(k, y, x)` reads the entry `table[y..., x...]`**: Julia&#39;s 1-based</span></span>
+<span id="cb31-59"><a href="#cb31-59" aria-hidden="true" tabindex="-1"></a><span class="do">`_linear_index(size(table), (Tuple(iy)..., Tuple(ix)...))` is `lin (y..., x...) + 1`. -/</span></span>
+<span id="cb31-60"><a href="#cb31-60" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> probability_linear (y : MIdx cs) (x : MIdx ds) :</span>
+<span id="cb31-61"><a href="#cb31-61" aria-hidden="true" tabindex="-1"></a>    juliaLinearIndex (cs ++ ds) ((coords y ++ coords x).map (· + <span class="dv">1</span>)) =</span>
+<span id="cb31-62"><a href="#cb31-62" aria-hidden="true" tabindex="-1"></a>      lin (append y x) + <span class="dv">1</span> := <span class="kw">by</span></span>
+<span id="cb31-63"><a href="#cb31-63" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [← coords_append, juliaLinearIndex_coords]</span>
+<span id="cb31-64"><a href="#cb31-64" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-65"><a href="#cb31-65" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> KernelTable</span></code></pre></div>
+<h2 id="the-parents...-child-cpt-layout-and-cpt">The
+<code>(parents..., child)</code> CPT layout and <code>cpt</code></h2>
+<div class="sourceCode" id="cb32"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="do">/-- A user CPT: shape `(parents..., child)`. -/</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a><span class="kw">abbrev</span> CptTable (α : <span class="kw">Type</span>) (ps : List ℕ) (c : ℕ) : <span class="kw">Type</span> := Tensor α (ps ++ [c])</span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The multi-index of a single child axis. -/</span></span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> childIdx {c : ℕ} (i : Fin c) : MIdx [c] := cons i nil</span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a><span class="at">@[simp]</span> <span class="kw">theorem</span> head_childIdx {c : ℕ} (i : Fin c) : head (childIdx i) = i := <span class="cf">rfl</span></span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> childIdx_head {c : ℕ} (y : MIdx [c]) : childIdx (head y) = y := <span class="cf">rfl</span></span>
+<span id="cb32-10"><a href="#cb32-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-11"><a href="#cb32-11" aria-hidden="true" tabindex="-1"></a><span class="kw">namespace</span> CptTable</span>
+<span id="cb32-12"><a href="#cb32-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-13"><a href="#cb32-13" aria-hidden="true" tabindex="-1"></a><span class="kw">variable</span> {ps : List ℕ} {c : ℕ}</span>
+<span id="cb32-14"><a href="#cb32-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-15"><a href="#cb32-15" aria-hidden="true" tabindex="-1"></a><span class="do">/-- `table[x..., i]`: the probability of child state `i` given parent states `x`. -/</span></span>
+<span id="cb32-16"><a href="#cb32-16" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> entry (A : CptTable α ps c) (x : MIdx ps) (i : Fin c) : α :=</span>
+<span id="cb32-17"><a href="#cb32-17" aria-hidden="true" tabindex="-1"></a>  Tensor.get A (append x (childIdx i))</span>
+<span id="cb32-18"><a href="#cb32-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-19"><a href="#cb32-19" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> CptTable</span>
+<span id="cb32-20"><a href="#cb32-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-21"><a href="#cb32-21" aria-hidden="true" tabindex="-1"></a><span class="do">/-- `cpt(parents, child, table)`: `permutedims(table, (n + 1, 1, …, n))`, child axis first. -/</span></span>
+<span id="cb32-22"><a href="#cb32-22" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> cptToKernel {ps : List ℕ} {c : ℕ} (A : CptTable α ps c) : KernelTable α [c] ps :=</span>
+<span id="cb32-23"><a href="#cb32-23" aria-hidden="true" tabindex="-1"></a>  Tensor.ofFun <span class="kw">fun</span> z =&gt; Tensor.get A (append (snd (ns := [c]) z) (fst (ns := [c]) z))</span>
+<span id="cb32-24"><a href="#cb32-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-25"><a href="#cb32-25" aria-hidden="true" tabindex="-1"></a><span class="do">/-- `cpt(k)`: `permutedims(table, (2, …, n + 1, 1))`, back to parents first. -/</span></span>
+<span id="cb32-26"><a href="#cb32-26" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> kernelToCpt {ps : List ℕ} {c : ℕ} (T : KernelTable α [c] ps) : CptTable α ps c :=</span>
+<span id="cb32-27"><a href="#cb32-27" aria-hidden="true" tabindex="-1"></a>  Tensor.ofFun <span class="kw">fun</span> w =&gt; Tensor.get T (append (snd (ns := ps) w) (fst (ns := ps) w))</span>
+<span id="cb32-28"><a href="#cb32-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-29"><a href="#cb32-29" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> get_cptToKernel {ps : List ℕ} {c : ℕ} (A : CptTable α ps c) (y : MIdx [c])</span>
+<span id="cb32-30"><a href="#cb32-30" aria-hidden="true" tabindex="-1"></a>    (x : MIdx ps) : Tensor.get (cptToKernel A) (append y x) = Tensor.get A (append x y) := <span class="kw">by</span></span>
+<span id="cb32-31"><a href="#cb32-31" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> [cptToKernel, fst_append, snd_append]</span>
+<span id="cb32-32"><a href="#cb32-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-33"><a href="#cb32-33" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> get_kernelToCpt {ps : List ℕ} {c : ℕ} (T : KernelTable α [c] ps) (x : MIdx ps)</span>
+<span id="cb32-34"><a href="#cb32-34" aria-hidden="true" tabindex="-1"></a>    (y : MIdx [c]) : Tensor.get (kernelToCpt T) (append x y) = Tensor.get T (append y x) := <span class="kw">by</span></span>
+<span id="cb32-35"><a href="#cb32-35" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> [kernelToCpt, fst_append, snd_append]</span>
+<span id="cb32-36"><a href="#cb32-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-37"><a href="#cb32-37" aria-hidden="true" tabindex="-1"></a><span class="do">/-- **`cpt` preserves every entry**: the kernel built from a CPT gives</span></span>
+<span id="cb32-38"><a href="#cb32-38" aria-hidden="true" tabindex="-1"></a><span class="do">`P(child = i | parents = x) = table[x..., i]`. -/</span></span>
+<span id="cb32-39"><a href="#cb32-39" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> toKernel_cptToKernel {ps : List ℕ} {c : ℕ} (A : CptTable α ps c) (x : MIdx ps)</span>
+<span id="cb32-40"><a href="#cb32-40" aria-hidden="true" tabindex="-1"></a>    (i : Fin c) : KernelTable.toKernel (cptToKernel A) x (childIdx i) = A.entry x i :=</span>
+<span id="cb32-41"><a href="#cb32-41" aria-hidden="true" tabindex="-1"></a>  get_cptToKernel A (childIdx i) x</span>
+<span id="cb32-42"><a href="#cb32-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-43"><a href="#cb32-43" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> entry_kernelToCpt {ps : List ℕ} {c : ℕ} (T : KernelTable α [c] ps) (x : MIdx ps)</span>
+<span id="cb32-44"><a href="#cb32-44" aria-hidden="true" tabindex="-1"></a>    (i : Fin c) : (kernelToCpt T).entry x i = KernelTable.toKernel T x (childIdx i) :=</span>
+<span id="cb32-45"><a href="#cb32-45" aria-hidden="true" tabindex="-1"></a>  get_kernelToCpt T x (childIdx i)</span>
+<span id="cb32-46"><a href="#cb32-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-47"><a href="#cb32-47" aria-hidden="true" tabindex="-1"></a><span class="at">@[simp]</span> <span class="kw">theorem</span> kernelToCpt_cptToKernel {ps : List ℕ} {c : ℕ} (A : CptTable α ps c) :</span>
+<span id="cb32-48"><a href="#cb32-48" aria-hidden="true" tabindex="-1"></a>    kernelToCpt (cptToKernel A) = A := <span class="kw">by</span></span>
+<span id="cb32-49"><a href="#cb32-49" aria-hidden="true" tabindex="-1"></a>  <span class="cf">apply</span> Tensor.ext_get</span>
+<span id="cb32-50"><a href="#cb32-50" aria-hidden="true" tabindex="-1"></a>  <span class="cf">intro</span> w</span>
+<span id="cb32-51"><a href="#cb32-51" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [← append_fst_snd w, get_kernelToCpt, get_cptToKernel]</span>
+<span id="cb32-52"><a href="#cb32-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-53"><a href="#cb32-53" aria-hidden="true" tabindex="-1"></a><span class="at">@[simp]</span> <span class="kw">theorem</span> cptToKernel_kernelToCpt {ps : List ℕ} {c : ℕ} (T : KernelTable α [c] ps) :</span>
+<span id="cb32-54"><a href="#cb32-54" aria-hidden="true" tabindex="-1"></a>    cptToKernel (kernelToCpt T) = T := <span class="kw">by</span></span>
+<span id="cb32-55"><a href="#cb32-55" aria-hidden="true" tabindex="-1"></a>  <span class="cf">apply</span> Tensor.ext_get</span>
+<span id="cb32-56"><a href="#cb32-56" aria-hidden="true" tabindex="-1"></a>  <span class="cf">intro</span> z</span>
+<span id="cb32-57"><a href="#cb32-57" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [← append_fst_snd (ns := [c]) z, get_cptToKernel, get_kernelToCpt]</span>
+<span id="cb32-58"><a href="#cb32-58" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-59"><a href="#cb32-59" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The two `cpt` conversions are mutually inverse. -/</span></span>
+<span id="cb32-60"><a href="#cb32-60" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> cptEquiv (α : <span class="kw">Type</span>) (ps : List ℕ) (c : ℕ) : CptTable α ps c ≃ KernelTable α [c] ps <span class="kw">where</span></span>
+<span id="cb32-61"><a href="#cb32-61" aria-hidden="true" tabindex="-1"></a>  toFun := cptToKernel</span>
+<span id="cb32-62"><a href="#cb32-62" aria-hidden="true" tabindex="-1"></a>  invFun := kernelToCpt</span>
+<span id="cb32-63"><a href="#cb32-63" aria-hidden="true" tabindex="-1"></a>  left_inv := kernelToCpt_cptToKernel</span>
+<span id="cb32-64"><a href="#cb32-64" aria-hidden="true" tabindex="-1"></a>  right_inv := cptToKernel_kernelToCpt</span>
+<span id="cb32-65"><a href="#cb32-65" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-66"><a href="#cb32-66" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The permutation of flat storage positions that `cpt` performs. -/</span></span>
+<span id="cb32-67"><a href="#cb32-67" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> cptPerm (ps : List ℕ) (c : ℕ) : Fin (ps ++ [c]).prod ≃ Fin ([c] ++ ps).prod :=</span>
+<span id="cb32-68"><a href="#cb32-68" aria-hidden="true" tabindex="-1"></a>  (toFlat (ps ++ [c])).symm.trans &lt;| (appendEquiv ps [c]).symm.trans &lt;|</span>
+<span id="cb32-69"><a href="#cb32-69" aria-hidden="true" tabindex="-1"></a>    (Equiv.prodComm _ _).trans &lt;| (appendEquiv [c] ps).trans (toFlat ([c] ++ ps))</span>
+<span id="cb32-70"><a href="#cb32-70" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-71"><a href="#cb32-71" aria-hidden="true" tabindex="-1"></a><span class="do">/-- **`cpt` moves storage by a bijection of positions and copies every value**:</span></span>
+<span id="cb32-72"><a href="#cb32-72" aria-hidden="true" tabindex="-1"></a><span class="do">the kernel table at position `q` is the CPT value at position `cptPerm.symm q`. -/</span></span>
+<span id="cb32-73"><a href="#cb32-73" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> cptToKernel_apply {ps : List ℕ} {c : ℕ} (A : CptTable α ps c)</span>
+<span id="cb32-74"><a href="#cb32-74" aria-hidden="true" tabindex="-1"></a>    (q : Fin ([c] ++ ps).prod) : cptToKernel A q = A ((cptPerm ps c).symm q) := <span class="kw">by</span></span>
+<span id="cb32-75"><a href="#cb32-75" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rfl</span></span></code></pre></div>
+<h2 id="julias-permutedims-contract">Julia’s <code>permutedims</code>
+contract</h2>
+<div class="sourceCode" id="cb33"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="do">/-- `B = permutedims(A, perm)` (0-based `perm`): `size(B, k) = size(A, perm[k])` and</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="do">`B[I] = A[J]` whenever `J[perm[k]] = I[k]` for every axis `k`. -/</span></span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> PermutedimsSpec {ns ms : List ℕ} (perm : ℕ → ℕ) (A : Tensor α ns) (B : Tensor α ms) : <span class="kw">Prop</span> :=</span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>  (∀ k &lt; ms.length, ms[k]? = ns[perm k]?) ∧</span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>    ∀ (I : MIdx ms) (J : MIdx ns),</span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a>      (∀ k &lt; ms.length, (coords J)[perm k]? = (coords I)[k]?) → Tensor.get B I = Tensor.get A J</span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The tuple `(n + 1, 1, …, n)` of `cpt(parents, child, table)`, 0-based. -/</span></span>
+<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> cptPermTuple (n : ℕ) (k : ℕ) : ℕ := <span class="kw">if</span> k = <span class="dv">0</span> <span class="kw">then</span> n <span class="kw">else</span> k - <span class="dv">1</span></span>
+<span id="cb33-10"><a href="#cb33-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-11"><a href="#cb33-11" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The tuple `(2, …, n + 1, 1)` of `cpt(k)`, 0-based. -/</span></span>
+<span id="cb33-12"><a href="#cb33-12" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> uncptPermTuple (n : ℕ) (k : ℕ) : ℕ := <span class="kw">if</span> k &lt; n <span class="kw">then</span> k + <span class="dv">1</span> <span class="kw">else</span> <span class="dv">0</span></span>
+<span id="cb33-13"><a href="#cb33-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-14"><a href="#cb33-14" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> coords_eq_of_perm {ps : List ℕ} {c : ℕ} (x : MIdx ps) (i : Fin c) (J : MIdx (ps ++ [c]))</span>
+<span id="cb33-15"><a href="#cb33-15" aria-hidden="true" tabindex="-1"></a>    (h : ∀ k &lt; ps.length + <span class="dv">1</span>,</span>
+<span id="cb33-16"><a href="#cb33-16" aria-hidden="true" tabindex="-1"></a>      (coords J)[cptPermTuple ps.length k]? = ((i : ℕ) :: coords x)[k]?) :</span>
+<span id="cb33-17"><a href="#cb33-17" aria-hidden="true" tabindex="-1"></a>    J = append x (childIdx i) := <span class="kw">by</span></span>
+<span id="cb33-18"><a href="#cb33-18" aria-hidden="true" tabindex="-1"></a>  <span class="cf">apply</span> coords_injective</span>
+<span id="cb33-19"><a href="#cb33-19" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [coords_append]</span>
+<span id="cb33-20"><a href="#cb33-20" aria-hidden="true" tabindex="-1"></a>  <span class="cf">apply</span> List.ext_getElem?</span>
+<span id="cb33-21"><a href="#cb33-21" aria-hidden="true" tabindex="-1"></a>  <span class="cf">intro</span> k</span>
+<span id="cb33-22"><a href="#cb33-22" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> hJ := length_coords J</span>
+<span id="cb33-23"><a href="#cb33-23" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> hx := length_coords x</span>
+<span id="cb33-24"><a href="#cb33-24" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> only [List.length_append, List.length_cons, List.length_nil] <span class="kw">at</span> hJ</span>
+<span id="cb33-25"><a href="#cb33-25" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rcases</span> lt_trichotomy k ps.length <span class="kw">with</span> hk | hk | hk</span>
+<span id="cb33-26"><a href="#cb33-26" aria-hidden="true" tabindex="-1"></a>  · <span class="kw">have</span> := h (k + <span class="dv">1</span>) (<span class="kw">by</span> <span class="cf">omega</span>)</span>
+<span id="cb33-27"><a href="#cb33-27" aria-hidden="true" tabindex="-1"></a>    <span class="cf">simp</span> only [cptPermTuple, Nat.add_one_ne_zero, if_false, Nat.add_sub_cancel,</span>
+<span id="cb33-28"><a href="#cb33-28" aria-hidden="true" tabindex="-1"></a>      List.getElem?_cons_succ] <span class="kw">at</span> this</span>
+<span id="cb33-29"><a href="#cb33-29" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> hk&#39; : k &lt; (coords x).length := <span class="kw">by</span> <span class="cf">omega</span></span>
+<span id="cb33-30"><a href="#cb33-30" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [this, List.getElem?_append_left hk&#39;]</span>
+<span id="cb33-31"><a href="#cb33-31" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">subst</span> hk</span>
+<span id="cb33-32"><a href="#cb33-32" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> := h <span class="dv">0</span> (<span class="kw">by</span> <span class="cf">omega</span>)</span>
+<span id="cb33-33"><a href="#cb33-33" aria-hidden="true" tabindex="-1"></a>    <span class="cf">simp</span> only [cptPermTuple, if_true, List.getElem?_cons_zero] <span class="kw">at</span> this</span>
+<span id="cb33-34"><a href="#cb33-34" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> hle : (coords x).length ≤ ps.length := le_of_eq hx</span>
+<span id="cb33-35"><a href="#cb33-35" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [this, List.getElem?_append_right hle, hx, Nat.sub_self]</span>
+<span id="cb33-36"><a href="#cb33-36" aria-hidden="true" tabindex="-1"></a>    all_goals <span class="cf">rfl</span></span>
+<span id="cb33-37"><a href="#cb33-37" aria-hidden="true" tabindex="-1"></a>  · <span class="kw">have</span> h1 : (coords J).length ≤ k := <span class="kw">by</span> <span class="cf">omega</span></span>
+<span id="cb33-38"><a href="#cb33-38" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> h2 : (coords x ++ coords (childIdx i)).length ≤ k := <span class="kw">by</span></span>
+<span id="cb33-39"><a href="#cb33-39" aria-hidden="true" tabindex="-1"></a>      <span class="cf">rw</span> [List.length_append, hx]</span>
+<span id="cb33-40"><a href="#cb33-40" aria-hidden="true" tabindex="-1"></a>      <span class="kw">show</span> ps.length + <span class="dv">1</span> ≤ k</span>
+<span id="cb33-41"><a href="#cb33-41" aria-hidden="true" tabindex="-1"></a>      <span class="cf">omega</span></span>
+<span id="cb33-42"><a href="#cb33-42" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [List.getElem?_eq_none h1, List.getElem?_eq_none h2]</span>
+<span id="cb33-43"><a href="#cb33-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-44"><a href="#cb33-44" aria-hidden="true" tabindex="-1"></a><span class="do">/-- **`cpt(parents, child, table)` is `permutedims(table, (n + 1, 1, …, n))`.** -/</span></span>
+<span id="cb33-45"><a href="#cb33-45" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> cptToKernel_permutedims {ps : List ℕ} {c : ℕ} (A : CptTable α ps c) :</span>
+<span id="cb33-46"><a href="#cb33-46" aria-hidden="true" tabindex="-1"></a>    PermutedimsSpec (cptPermTuple ps.length) A (cptToKernel A) := <span class="kw">by</span></span>
+<span id="cb33-47"><a href="#cb33-47" aria-hidden="true" tabindex="-1"></a>  <span class="cf">constructor</span></span>
+<span id="cb33-48"><a href="#cb33-48" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">intro</span> k hk</span>
+<span id="cb33-49"><a href="#cb33-49" aria-hidden="true" tabindex="-1"></a>    <span class="cf">simp</span> only [List.length_append, List.length_cons, List.length_nil] <span class="kw">at</span> hk</span>
+<span id="cb33-50"><a href="#cb33-50" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rcases</span> Nat.eq_zero_or_pos k <span class="kw">with</span> <span class="cf">rfl</span> | hk0</span>
+<span id="cb33-51"><a href="#cb33-51" aria-hidden="true" tabindex="-1"></a>    · <span class="cf">simp</span> [cptPermTuple]</span>
+<span id="cb33-52"><a href="#cb33-52" aria-hidden="true" tabindex="-1"></a>    · <span class="cf">obtain</span> ⟨j, rfl⟩ : ∃ j, k = j + <span class="dv">1</span> := ⟨k - <span class="dv">1</span>, <span class="kw">by</span> omega⟩</span>
+<span id="cb33-53"><a href="#cb33-53" aria-hidden="true" tabindex="-1"></a>      <span class="kw">have</span> hj : j &lt; ps.length := <span class="kw">by</span> <span class="cf">omega</span></span>
+<span id="cb33-54"><a href="#cb33-54" aria-hidden="true" tabindex="-1"></a>      <span class="cf">simp</span> only [cptPermTuple, Nat.add_one_ne_zero, if_false, Nat.add_sub_cancel]</span>
+<span id="cb33-55"><a href="#cb33-55" aria-hidden="true" tabindex="-1"></a>      <span class="cf">rw</span> [List.getElem?_append_left (l₂ := [c]) hj]</span>
+<span id="cb33-56"><a href="#cb33-56" aria-hidden="true" tabindex="-1"></a>      <span class="cf">simp</span></span>
+<span id="cb33-57"><a href="#cb33-57" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">intro</span> I J hIJ</span>
+<span id="cb33-58"><a href="#cb33-58" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> hI : I = append (fst (ns := [c]) I) (snd (ns := [c]) I) := (append_fst_snd I).symm</span>
+<span id="cb33-59"><a href="#cb33-59" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> hc : coords I = (head (fst (ns := [c]) I) : ℕ) :: coords (snd (ns := [c]) I) := <span class="kw">by</span></span>
+<span id="cb33-60"><a href="#cb33-60" aria-hidden="true" tabindex="-1"></a>      conv_lhs =&gt; <span class="cf">rw</span> [hI]</span>
+<span id="cb33-61"><a href="#cb33-61" aria-hidden="true" tabindex="-1"></a>      <span class="cf">rw</span> [coords_append]</span>
+<span id="cb33-62"><a href="#cb33-62" aria-hidden="true" tabindex="-1"></a>      all_goals <span class="cf">rfl</span></span>
+<span id="cb33-63"><a href="#cb33-63" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> hJ : J = append (snd (ns := [c]) I) (childIdx (head (fst (ns := [c]) I))) := <span class="kw">by</span></span>
+<span id="cb33-64"><a href="#cb33-64" aria-hidden="true" tabindex="-1"></a>      <span class="cf">apply</span> coords_eq_of_perm</span>
+<span id="cb33-65"><a href="#cb33-65" aria-hidden="true" tabindex="-1"></a>      <span class="cf">intro</span> k hk</span>
+<span id="cb33-66"><a href="#cb33-66" aria-hidden="true" tabindex="-1"></a>      <span class="kw">have</span> hk&#39; : k &lt; ([c] ++ ps).length := <span class="kw">by</span> <span class="cf">simp</span>; <span class="cf">omega</span></span>
+<span id="cb33-67"><a href="#cb33-67" aria-hidden="true" tabindex="-1"></a>      <span class="cf">rw</span> [hIJ k hk&#39;, hc]</span>
+<span id="cb33-68"><a href="#cb33-68" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [hJ]</span>
+<span id="cb33-69"><a href="#cb33-69" aria-hidden="true" tabindex="-1"></a>    conv_lhs =&gt; <span class="cf">rw</span> [hI]</span>
+<span id="cb33-70"><a href="#cb33-70" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [get_cptToKernel, childIdx_head]</span>
+<span id="cb33-71"><a href="#cb33-71" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-72"><a href="#cb33-72" aria-hidden="true" tabindex="-1"></a><span class="do">/-- **`cpt(k)` is `permutedims(table, (2, …, n + 1, 1))`.** -/</span></span>
+<span id="cb33-73"><a href="#cb33-73" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> kernelToCpt_permutedims {ps : List ℕ} {c : ℕ} (T : KernelTable α [c] ps) :</span>
+<span id="cb33-74"><a href="#cb33-74" aria-hidden="true" tabindex="-1"></a>    PermutedimsSpec (uncptPermTuple ps.length) T (kernelToCpt T) := <span class="kw">by</span></span>
+<span id="cb33-75"><a href="#cb33-75" aria-hidden="true" tabindex="-1"></a>  <span class="cf">constructor</span></span>
+<span id="cb33-76"><a href="#cb33-76" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">intro</span> k hk</span>
+<span id="cb33-77"><a href="#cb33-77" aria-hidden="true" tabindex="-1"></a>    <span class="cf">simp</span> only [List.length_append, List.length_cons, List.length_nil] <span class="kw">at</span> hk</span>
+<span id="cb33-78"><a href="#cb33-78" aria-hidden="true" tabindex="-1"></a>    <span class="cf">by_cases</span> hkn : k &lt; ps.length</span>
+<span id="cb33-79"><a href="#cb33-79" aria-hidden="true" tabindex="-1"></a>    · <span class="cf">simp</span> only [uncptPermTuple, hkn, if_true]</span>
+<span id="cb33-80"><a href="#cb33-80" aria-hidden="true" tabindex="-1"></a>      <span class="cf">rw</span> [List.getElem?_append_left (l₂ := [c]) hkn]</span>
+<span id="cb33-81"><a href="#cb33-81" aria-hidden="true" tabindex="-1"></a>      <span class="cf">simp</span></span>
+<span id="cb33-82"><a href="#cb33-82" aria-hidden="true" tabindex="-1"></a>    · <span class="kw">have</span> : k = ps.length := <span class="kw">by</span> <span class="cf">omega</span></span>
+<span id="cb33-83"><a href="#cb33-83" aria-hidden="true" tabindex="-1"></a>      <span class="cf">subst</span> this</span>
+<span id="cb33-84"><a href="#cb33-84" aria-hidden="true" tabindex="-1"></a>      <span class="cf">simp</span> [uncptPermTuple]</span>
+<span id="cb33-85"><a href="#cb33-85" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">intro</span> I J hIJ</span>
+<span id="cb33-86"><a href="#cb33-86" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> hI : I = append (fst (ns := ps) I) (snd (ns := ps) I) := (append_fst_snd I).symm</span>
+<span id="cb33-87"><a href="#cb33-87" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> hcI : coords I = coords (fst (ns := ps) (ms := [c]) I) ++</span>
+<span id="cb33-88"><a href="#cb33-88" aria-hidden="true" tabindex="-1"></a>        [(head (snd (ns := ps) (ms := [c]) I) : ℕ)] := <span class="kw">by</span></span>
+<span id="cb33-89"><a href="#cb33-89" aria-hidden="true" tabindex="-1"></a>      conv_lhs =&gt; <span class="cf">rw</span> [hI]</span>
+<span id="cb33-90"><a href="#cb33-90" aria-hidden="true" tabindex="-1"></a>      <span class="cf">rw</span> [coords_append]</span>
+<span id="cb33-91"><a href="#cb33-91" aria-hidden="true" tabindex="-1"></a>      all_goals <span class="cf">rfl</span></span>
+<span id="cb33-92"><a href="#cb33-92" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> hy : coords (snd (ns := ps) (ms := [c]) I) = [(head (snd (ns := ps) (ms := [c]) I) : ℕ)] :=</span>
+<span id="cb33-93"><a href="#cb33-93" aria-hidden="true" tabindex="-1"></a>      <span class="cf">rfl</span></span>
+<span id="cb33-94"><a href="#cb33-94" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> hx := length_coords (fst (ns := ps) (ms := [c]) I)</span>
+<span id="cb33-95"><a href="#cb33-95" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> hJ : J = append (snd (ns := ps) (ms := [c]) I) (fst (ns := ps) (ms := [c]) I) := <span class="kw">by</span></span>
+<span id="cb33-96"><a href="#cb33-96" aria-hidden="true" tabindex="-1"></a>      <span class="cf">apply</span> coords_injective</span>
+<span id="cb33-97"><a href="#cb33-97" aria-hidden="true" tabindex="-1"></a>      <span class="cf">rw</span> [coords_append]</span>
+<span id="cb33-98"><a href="#cb33-98" aria-hidden="true" tabindex="-1"></a>      <span class="cf">apply</span> List.ext_getElem?</span>
+<span id="cb33-99"><a href="#cb33-99" aria-hidden="true" tabindex="-1"></a>      <span class="cf">intro</span> k</span>
+<span id="cb33-100"><a href="#cb33-100" aria-hidden="true" tabindex="-1"></a>      <span class="kw">have</span> hlen := length_coords J</span>
+<span id="cb33-101"><a href="#cb33-101" aria-hidden="true" tabindex="-1"></a>      <span class="cf">simp</span> only [List.length_append, List.length_cons, List.length_nil] <span class="kw">at</span> hlen</span>
+<span id="cb33-102"><a href="#cb33-102" aria-hidden="true" tabindex="-1"></a>      <span class="cf">rcases</span> Nat.eq_zero_or_pos k <span class="kw">with</span> <span class="cf">rfl</span> | hk0</span>
+<span id="cb33-103"><a href="#cb33-103" aria-hidden="true" tabindex="-1"></a>      · <span class="kw">have</span> := hIJ ps.length (<span class="kw">by</span> <span class="cf">simp</span>)</span>
+<span id="cb33-104"><a href="#cb33-104" aria-hidden="true" tabindex="-1"></a>        <span class="cf">simp</span> only [uncptPermTuple, lt_irrefl, if_false] <span class="kw">at</span> this</span>
+<span id="cb33-105"><a href="#cb33-105" aria-hidden="true" tabindex="-1"></a>        <span class="kw">have</span> hle : (coords (fst (ns := ps) (ms := [c]) I)).length ≤ ps.length := le_of_eq hx</span>
+<span id="cb33-106"><a href="#cb33-106" aria-hidden="true" tabindex="-1"></a>        <span class="cf">rw</span> [this, hcI, List.getElem?_append_right hle, hx, Nat.sub_self, hy]</span>
+<span id="cb33-107"><a href="#cb33-107" aria-hidden="true" tabindex="-1"></a>        all_goals <span class="cf">simp</span></span>
+<span id="cb33-108"><a href="#cb33-108" aria-hidden="true" tabindex="-1"></a>      · <span class="cf">obtain</span> ⟨j, rfl⟩ : ∃ j, k = j + <span class="dv">1</span> := ⟨k - <span class="dv">1</span>, <span class="kw">by</span> omega⟩</span>
+<span id="cb33-109"><a href="#cb33-109" aria-hidden="true" tabindex="-1"></a>        <span class="cf">by_cases</span> hj : j &lt; ps.length</span>
+<span id="cb33-110"><a href="#cb33-110" aria-hidden="true" tabindex="-1"></a>        · <span class="kw">have</span> := hIJ j (<span class="kw">by</span> <span class="cf">simp</span>; <span class="cf">omega</span>)</span>
+<span id="cb33-111"><a href="#cb33-111" aria-hidden="true" tabindex="-1"></a>          <span class="cf">simp</span> only [uncptPermTuple, hj, if_true] <span class="kw">at</span> this</span>
+<span id="cb33-112"><a href="#cb33-112" aria-hidden="true" tabindex="-1"></a>          <span class="kw">have</span> hj&#39; : j &lt; (coords (fst (ns := ps) (ms := [c]) I)).length := <span class="kw">by</span> <span class="cf">omega</span></span>
+<span id="cb33-113"><a href="#cb33-113" aria-hidden="true" tabindex="-1"></a>          <span class="cf">rw</span> [this, hcI, List.getElem?_append_left hj&#39;, hy]</span>
+<span id="cb33-114"><a href="#cb33-114" aria-hidden="true" tabindex="-1"></a>          all_goals <span class="cf">simp</span></span>
+<span id="cb33-115"><a href="#cb33-115" aria-hidden="true" tabindex="-1"></a>        · <span class="kw">have</span> h1 : (coords J).length ≤ j + <span class="dv">1</span> := <span class="kw">by</span> <span class="cf">omega</span></span>
+<span id="cb33-116"><a href="#cb33-116" aria-hidden="true" tabindex="-1"></a>          <span class="kw">have</span> h2 : (coords (snd (ns := ps) (ms := [c]) I) ++</span>
+<span id="cb33-117"><a href="#cb33-117" aria-hidden="true" tabindex="-1"></a>              coords (fst (ns := ps) (ms := [c]) I)).length ≤ j + <span class="dv">1</span> := <span class="kw">by</span></span>
+<span id="cb33-118"><a href="#cb33-118" aria-hidden="true" tabindex="-1"></a>            <span class="cf">rw</span> [List.length_append, hx]</span>
+<span id="cb33-119"><a href="#cb33-119" aria-hidden="true" tabindex="-1"></a>            <span class="kw">show</span> <span class="dv">1</span> + ps.length ≤ j + <span class="dv">1</span></span>
+<span id="cb33-120"><a href="#cb33-120" aria-hidden="true" tabindex="-1"></a>            <span class="cf">omega</span></span>
+<span id="cb33-121"><a href="#cb33-121" aria-hidden="true" tabindex="-1"></a>          <span class="cf">rw</span> [List.getElem?_eq_none h1, List.getElem?_eq_none h2]</span>
+<span id="cb33-122"><a href="#cb33-122" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [hJ]</span>
+<span id="cb33-123"><a href="#cb33-123" aria-hidden="true" tabindex="-1"></a>    conv_lhs =&gt; <span class="cf">rw</span> [hI]</span>
+<span id="cb33-124"><a href="#cb33-124" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [get_kernelToCpt]</span></code></pre></div>
+<h2 id="normalisation">Normalisation</h2>
+<div class="sourceCode" id="cb34"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="do">/-- **A CPT normalised over its last axis gives a normalised kernel, and conversely.** -/</span></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> normalised_cptToKernel_iff {ps : List ℕ} {c : ℕ} (A : CptTable ℝ ps c) :</span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>    Finite.Kernel.Normalised (KernelTable.toFiniteKernel (cptToKernel A)) ↔</span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a>      ∀ x, ∑ i : Fin c, A.entry x i = <span class="dv">1</span> := <span class="kw">by</span></span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> hsum : ∀ x, ∑ y : MIdx [c], KernelTable.toFiniteKernel (cptToKernel A) x y =</span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a>      ∑ i : Fin c, A.entry x i := <span class="kw">by</span></span>
+<span id="cb34-7"><a href="#cb34-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">intro</span> x</span>
+<span id="cb34-8"><a href="#cb34-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">let</span> e : MIdx [c] ≃ Fin c :=</span>
+<span id="cb34-9"><a href="#cb34-9" aria-hidden="true" tabindex="-1"></a>      { toFun := head, invFun := childIdx, left_inv := childIdx_head, right_inv := <span class="kw">fun</span> _ =&gt; <span class="cf">rfl</span> }</span>
+<span id="cb34-10"><a href="#cb34-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">refine</span> Fintype.sum_equiv e _ (<span class="kw">fun</span> i =&gt; A.entry x i) <span class="kw">fun</span> y =&gt; ?_</span>
+<span id="cb34-11"><a href="#cb34-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">exact</span> toKernel_cptToKernel A x (head y)</span>
+<span id="cb34-12"><a href="#cb34-12" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> only [Finite.Kernel.Normalised, hsum]</span>
+<span id="cb34-13"><a href="#cb34-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-14"><a href="#cb34-14" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> FiniteKernelsProofs.Layout</span></code></pre></div>
+<!-- FiniteKernelsProofs/Layout/Product.lean -->
+<h1 id="the-stride-based-product-of-two-factors">The stride-based
+product of two factors</h1>
+<div class="sourceCode" id="cb35"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> FiniteKernelsProofs.Layout.ColumnMajor</span></code></pre></div>
+<p><code>multiply(f, g)</code> in
+<code>BayesianNetworkInference.jl</code> (<code>src/factors.jl</code>)
+builds the product over the union of the two scopes without permuting
+either table:</p>
+<ul>
+<li><code>_union_axes</code> lists the result axes (<code>f</code>’s
+variables, then <code>g</code>’s new ones); a factor’s axis
+<code>j</code> is the result axis <code>pa[j]</code>, so its table has
+shape <code>pa.map ns.get</code>;</li>
+<li><code>_result_strides(h, vars)</code> gives each result axis the
+column-major stride that <code>h</code>’s own table has for that
+variable, and <code>0</code> if <code>h</code> lacks it
+(<code>resultStride</code>, <code>resultStride_eq</code>);</li>
+<li><code>_product_into!</code> walks the result’s joint states in
+column-major order with an odometer, updating the two table offsets
+incrementally (<code>bump</code>, <code>productLoop</code>), and stores
+<code>out[i] = a[ai] * b[bi]</code>.</li>
+</ul>
+<p>Here a factor over result positions <code>pa</code> is, semantically,
+the function <code>I ↦ F.get (project I pa)</code> of the joint
+multi-index (it reads the coordinates of its own axes), and the
+<strong>named product</strong> is the pointwise product of those
+functions (<code>namedProduct</code>).</p>
+<ul>
+<li><code>offset_eq_lin</code>: for a factor without repeated variables
+(<code>pa.Nodup</code>, which the <code>Factor</code> constructor
+enforces), the result-stride offset <code>∑ₖ Iₖ * resultStride k</code>
+is the position of the projected multi-index in the factor’s own
+table.</li>
+<li><code>slotOffset_eq_lin</code>: the per-slot strides of
+<code>BayesianNetworks</code>’ <code>_Factor</code> (one stride per
+table axis, repeats allowed) compute the same position with no
+<code>Nodup</code> hypothesis, and <code>resultStride_repeated</code>
+shows that the result-stride form is wrong for repeated axes.</li>
+<li><code>bump_spec</code> and <code>productLoop_eq</code>: the odometer
+step moves to <code>MIdx.next</code> and keeps each offset equal to its
+stride sum.</li>
+<li><code>productInto_getElem?</code> / <code>productInto_eq</code>:
+<strong>the list written by the loop is the flat column-major table of
+the named product</strong>, including the zero-dimensional case (one
+entry).</li>
+</ul>
+<p>Values live in any type with a multiplication (a semiring in
+practice); this is exact index arithmetic, not a statement about Julia
+execution or IEEE rounding.</p>
+<div class="sourceCode" id="cb36"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="kw">namespace</span> FiniteKernelsProofs.Layout</span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a><span class="kw">open</span> MIdx</span></code></pre></div>
+<h2 id="coordinates-and-projections">Coordinates and projections</h2>
+<div class="sourceCode" id="cb37"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The coordinate of axis `k`, as an element of that axis. -/</span></span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> MIdx.coord : {ns : List ℕ} → MIdx ns → (k : Fin ns.length) → Fin (ns.get k)</span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>  | [], _, k =&gt; k.elim0</span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a>  | _ :: _, idx, ⟨<span class="dv">0</span>, _⟩ =&gt; head idx</span>
+<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a>  | _ :: _, idx, ⟨k + <span class="dv">1</span>, h⟩ =&gt; coord (tail idx) ⟨k, Nat.lt_of_succ_lt_succ h⟩</span>
+<span id="cb37-6"><a href="#cb37-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-7"><a href="#cb37-7" aria-hidden="true" tabindex="-1"></a><span class="do">/-- All coordinates of a multi-index at linear position zero are zero. -/</span></span>
+<span id="cb37-8"><a href="#cb37-8" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> MIdx.coord_eq_zero_of_lin : {ns : List ℕ} → (z : MIdx ns) → lin z = <span class="dv">0</span> →</span>
+<span id="cb37-9"><a href="#cb37-9" aria-hidden="true" tabindex="-1"></a>    ∀ k, (coord z k : ℕ) = <span class="dv">0</span></span>
+<span id="cb37-10"><a href="#cb37-10" aria-hidden="true" tabindex="-1"></a>  | [], _, _, k =&gt; k.elim0</span>
+<span id="cb37-11"><a href="#cb37-11" aria-hidden="true" tabindex="-1"></a>  | n :: _, z, h, ⟨<span class="dv">0</span>, _⟩ =&gt; <span class="kw">by</span></span>
+<span id="cb37-12"><a href="#cb37-12" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> h&#39; : (head z : ℕ) + n * lin (tail z) = <span class="dv">0</span> := h</span>
+<span id="cb37-13"><a href="#cb37-13" aria-hidden="true" tabindex="-1"></a>    <span class="kw">show</span> (head z : ℕ) = <span class="dv">0</span></span>
+<span id="cb37-14"><a href="#cb37-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">omega</span></span>
+<span id="cb37-15"><a href="#cb37-15" aria-hidden="true" tabindex="-1"></a>  | n :: _, z, h, ⟨k + <span class="dv">1</span>, hk⟩ =&gt; <span class="kw">by</span></span>
+<span id="cb37-16"><a href="#cb37-16" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> h&#39; : (head z : ℕ) + n * lin (tail z) = <span class="dv">0</span> := h</span>
+<span id="cb37-17"><a href="#cb37-17" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> hn : <span class="dv">0</span> &lt; n := lt_of_le_of_lt (Nat.zero_le _) (head z).isLt</span>
+<span id="cb37-18"><a href="#cb37-18" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> ht : lin (tail z) = <span class="dv">0</span> := <span class="kw">by</span></span>
+<span id="cb37-19"><a href="#cb37-19" aria-hidden="true" tabindex="-1"></a>      <span class="cf">rcases</span> Nat.mul_eq_zero<span class="fl">.1</span> (<span class="kw">by</span> <span class="cf">omega</span> : n * lin (tail z) = <span class="dv">0</span>) <span class="kw">with</span> h&#39;&#39; | h&#39;&#39;</span>
+<span id="cb37-20"><a href="#cb37-20" aria-hidden="true" tabindex="-1"></a>      · <span class="cf">omega</span></span>
+<span id="cb37-21"><a href="#cb37-21" aria-hidden="true" tabindex="-1"></a>      · <span class="cf">exact</span> h&#39;&#39;</span>
+<span id="cb37-22"><a href="#cb37-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">exact</span> coord_eq_zero_of_lin (tail z) ht ⟨k, Nat.lt_of_succ_lt_succ hk⟩</span>
+<span id="cb37-23"><a href="#cb37-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-24"><a href="#cb37-24" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The multi-index of a factor whose axis `j` is the result axis `pa[j]`: `I[pa]`. -/</span></span>
+<span id="cb37-25"><a href="#cb37-25" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> project {ns : List ℕ} (I : MIdx ns) : (pa : List (Fin ns.length)) → MIdx (pa.map ns.get)</span>
+<span id="cb37-26"><a href="#cb37-26" aria-hidden="true" tabindex="-1"></a>  | [] =&gt; nil</span>
+<span id="cb37-27"><a href="#cb37-27" aria-hidden="true" tabindex="-1"></a>  | p :: pa =&gt; cons (coord I p) (project I pa)</span>
+<span id="cb37-28"><a href="#cb37-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-29"><a href="#cb37-29" aria-hidden="true" tabindex="-1"></a><span class="kw">variable</span> {α : <span class="kw">Type</span>} {ns : List ℕ}</span>
+<span id="cb37-30"><a href="#cb37-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-31"><a href="#cb37-31" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The named (functional) product: at every joint multi-index, the product of the two</span></span>
+<span id="cb37-32"><a href="#cb37-32" aria-hidden="true" tabindex="-1"></a><span class="do">factors&#39; entries at their projected multi-indices. -/</span></span>
+<span id="cb37-33"><a href="#cb37-33" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> namedProduct [Mul α] (pa pb : List (Fin ns.length)) (F : Tensor α (pa.map ns.get))</span>
+<span id="cb37-34"><a href="#cb37-34" aria-hidden="true" tabindex="-1"></a>    (G : Tensor α (pb.map ns.get)) : Tensor α ns :=</span>
+<span id="cb37-35"><a href="#cb37-35" aria-hidden="true" tabindex="-1"></a>  Tensor.ofFun <span class="kw">fun</span> I =&gt; F.get (project I pa) * G.get (project I pb)</span></code></pre></div>
+<h2 id="strides">Strides</h2>
+<div class="sourceCode" id="cb38"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="do">/-- `_result_strides(h, vars)`, recursively: the first slot has stride one and every later slot</span></span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a><span class="do">the size of the earlier ones times its stride in the tail. -/</span></span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> resultStride (ns : List ℕ) : List (Fin ns.length) → Fin ns.length → ℕ</span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a>  | [], _ =&gt; <span class="dv">0</span></span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a>  | p :: pa, i =&gt; <span class="kw">if</span> i = p <span class="kw">then</span> <span class="dv">1</span> <span class="kw">else</span> ns.get p * resultStride ns pa i</span>
+<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-7"><a href="#cb38-7" aria-hidden="true" tabindex="-1"></a><span class="do">/-- `resultStride` is literally `_result_strides`: the column-major stride of the **first**</span></span>
+<span id="cb38-8"><a href="#cb38-8" aria-hidden="true" tabindex="-1"></a><span class="do">slot of the factor that carries result axis `i`, and `0` when there is none. -/</span></span>
+<span id="cb38-9"><a href="#cb38-9" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> resultStride_eq (pa : List (Fin ns.length)) (i : Fin ns.length) :</span>
+<span id="cb38-10"><a href="#cb38-10" aria-hidden="true" tabindex="-1"></a>    resultStride ns pa i = <span class="kw">if</span> i ∈ pa <span class="kw">then</span> ((pa.map ns.get).take (pa.idxOf i)).prod <span class="kw">else</span> <span class="dv">0</span> := <span class="kw">by</span></span>
+<span id="cb38-11"><a href="#cb38-11" aria-hidden="true" tabindex="-1"></a>  <span class="cf">induction</span> pa <span class="kw">with</span></span>
+<span id="cb38-12"><a href="#cb38-12" aria-hidden="true" tabindex="-1"></a>  | nil =&gt; <span class="cf">simp</span> [resultStride]</span>
+<span id="cb38-13"><a href="#cb38-13" aria-hidden="true" tabindex="-1"></a>  | cons p pa ih =&gt;</span>
+<span id="cb38-14"><a href="#cb38-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">by_cases</span> h : i = p</span>
+<span id="cb38-15"><a href="#cb38-15" aria-hidden="true" tabindex="-1"></a>    · <span class="cf">subst</span> h</span>
+<span id="cb38-16"><a href="#cb38-16" aria-hidden="true" tabindex="-1"></a>      <span class="cf">simp</span> [resultStride]</span>
+<span id="cb38-17"><a href="#cb38-17" aria-hidden="true" tabindex="-1"></a>    · <span class="kw">have</span> hne : p ≠ i := Ne.symm h</span>
+<span id="cb38-18"><a href="#cb38-18" aria-hidden="true" tabindex="-1"></a>      <span class="cf">simp</span> only [resultStride, h, if_false, ih, List.mem_cons, false_or, List.map_cons,</span>
+<span id="cb38-19"><a href="#cb38-19" aria-hidden="true" tabindex="-1"></a>        List.idxOf_cons_ne _ hne, Nat.succ_eq_add_one, List.take_succ_cons, List.prod_cons]</span>
+<span id="cb38-20"><a href="#cb38-20" aria-hidden="true" tabindex="-1"></a>      <span class="cf">split_ifs</span> &lt;;&gt; <span class="cf">simp</span></span>
+<span id="cb38-21"><a href="#cb38-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-22"><a href="#cb38-22" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> resultStride_of_notMem (pa : List (Fin ns.length)) (i : Fin ns.length) (h : i ∉ pa) :</span>
+<span id="cb38-23"><a href="#cb38-23" aria-hidden="true" tabindex="-1"></a>    resultStride ns pa i = <span class="dv">0</span> := <span class="kw">by</span></span>
+<span id="cb38-24"><a href="#cb38-24" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [resultStride_eq, if_neg h]</span>
+<span id="cb38-25"><a href="#cb38-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-26"><a href="#cb38-26" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The table offset `∑ₖ Iₖ * resultStride k` of the result multi-index `I`. -/</span></span>
+<span id="cb38-27"><a href="#cb38-27" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> offset (pa : List (Fin ns.length)) (I : MIdx ns) : ℕ :=</span>
+<span id="cb38-28"><a href="#cb38-28" aria-hidden="true" tabindex="-1"></a>  ∑ k : Fin ns.length, (coord I k : ℕ) * resultStride ns pa k</span>
+<span id="cb38-29"><a href="#cb38-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-30"><a href="#cb38-30" aria-hidden="true" tabindex="-1"></a><span class="do">/-- **Result strides locate the projected entry** when the factor has no repeated variable. -/</span></span>
+<span id="cb38-31"><a href="#cb38-31" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> offset_eq_lin (pa : List (Fin ns.length)) (hpa : pa.Nodup) (I : MIdx ns) :</span>
+<span id="cb38-32"><a href="#cb38-32" aria-hidden="true" tabindex="-1"></a>    offset pa I = lin (project I pa) := <span class="kw">by</span></span>
+<span id="cb38-33"><a href="#cb38-33" aria-hidden="true" tabindex="-1"></a>  <span class="cf">induction</span> pa <span class="kw">with</span></span>
+<span id="cb38-34"><a href="#cb38-34" aria-hidden="true" tabindex="-1"></a>  | nil =&gt; <span class="cf">simp</span> [offset, resultStride, project]</span>
+<span id="cb38-35"><a href="#cb38-35" aria-hidden="true" tabindex="-1"></a>  | cons p pa ih =&gt;</span>
+<span id="cb38-36"><a href="#cb38-36" aria-hidden="true" tabindex="-1"></a>    <span class="cf">obtain</span> ⟨hp, hpa⟩ := List.nodup_cons<span class="fl">.1</span> hpa</span>
+<span id="cb38-37"><a href="#cb38-37" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> hterm : ∀ k : Fin ns.length, (coord I k : ℕ) * resultStride ns (p :: pa) k =</span>
+<span id="cb38-38"><a href="#cb38-38" aria-hidden="true" tabindex="-1"></a>        (<span class="kw">if</span> k = p <span class="kw">then</span> (coord I k : ℕ) <span class="kw">else</span> <span class="dv">0</span>) +</span>
+<span id="cb38-39"><a href="#cb38-39" aria-hidden="true" tabindex="-1"></a>          ns.get p * ((coord I k : ℕ) * resultStride ns pa k) := <span class="kw">by</span></span>
+<span id="cb38-40"><a href="#cb38-40" aria-hidden="true" tabindex="-1"></a>      <span class="cf">intro</span> k</span>
+<span id="cb38-41"><a href="#cb38-41" aria-hidden="true" tabindex="-1"></a>      <span class="cf">by_cases</span> hk : k = p</span>
+<span id="cb38-42"><a href="#cb38-42" aria-hidden="true" tabindex="-1"></a>      · <span class="cf">rw</span> [hk]</span>
+<span id="cb38-43"><a href="#cb38-43" aria-hidden="true" tabindex="-1"></a>        <span class="cf">simp</span> [resultStride, resultStride_of_notMem pa p hp]</span>
+<span id="cb38-44"><a href="#cb38-44" aria-hidden="true" tabindex="-1"></a>      · <span class="cf">simp</span> only [resultStride, hk, if_false, zero_add]</span>
+<span id="cb38-45"><a href="#cb38-45" aria-hidden="true" tabindex="-1"></a>        <span class="cf">ring</span></span>
+<span id="cb38-46"><a href="#cb38-46" aria-hidden="true" tabindex="-1"></a>    <span class="cf">unfold</span> offset</span>
+<span id="cb38-47"><a href="#cb38-47" aria-hidden="true" tabindex="-1"></a>    <span class="cf">simp</span> only [hterm, Finset.sum_add_distrib, Finset.sum_ite_eq&#39;, Finset.mem_univ, if_true,</span>
+<span id="cb38-48"><a href="#cb38-48" aria-hidden="true" tabindex="-1"></a>      ← Finset.mul_sum]</span>
+<span id="cb38-49"><a href="#cb38-49" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [<span class="kw">show</span> (∑ k : Fin ns.length, (coord I k : ℕ) * resultStride ns pa k) = offset pa I <span class="kw">from</span> <span class="cf">rfl</span>,</span>
+<span id="cb38-50"><a href="#cb38-50" aria-hidden="true" tabindex="-1"></a>      ih hpa]</span>
+<span id="cb38-51"><a href="#cb38-51" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rfl</span></span>
+<span id="cb38-52"><a href="#cb38-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-53"><a href="#cb38-53" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> coords_project (I : MIdx ns) (pa : List (Fin ns.length)) :</span>
+<span id="cb38-54"><a href="#cb38-54" aria-hidden="true" tabindex="-1"></a>    coords (project I pa) = pa.map <span class="kw">fun</span> p =&gt; (coord I p : ℕ) := <span class="kw">by</span></span>
+<span id="cb38-55"><a href="#cb38-55" aria-hidden="true" tabindex="-1"></a>  <span class="cf">induction</span> pa <span class="kw">with</span></span>
+<span id="cb38-56"><a href="#cb38-56" aria-hidden="true" tabindex="-1"></a>  | nil =&gt; <span class="cf">rfl</span></span>
+<span id="cb38-57"><a href="#cb38-57" aria-hidden="true" tabindex="-1"></a>  | cons p pa ih =&gt;</span>
+<span id="cb38-58"><a href="#cb38-58" aria-hidden="true" tabindex="-1"></a>    <span class="kw">show</span> (coord I p : ℕ) :: coords (project I pa) = _</span>
+<span id="cb38-59"><a href="#cb38-59" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [ih]</span>
+<span id="cb38-60"><a href="#cb38-60" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rfl</span></span>
+<span id="cb38-61"><a href="#cb38-61" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-62"><a href="#cb38-62" aria-hidden="true" tabindex="-1"></a><span class="do">/-- **Per-slot strides** (`BayesianNetworks`&#39; `_Factor`: `idx += strides[j] * (ci[axes[j]] - 1)`)</span></span>
+<span id="cb38-63"><a href="#cb38-63" aria-hidden="true" tabindex="-1"></a><span class="do">locate the projected entry for every slot list, repeated result axes included. -/</span></span>
+<span id="cb38-64"><a href="#cb38-64" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> slotOffset_eq_lin (pa : List (Fin ns.length)) (I : MIdx ns) :</span>
+<span id="cb38-65"><a href="#cb38-65" aria-hidden="true" tabindex="-1"></a>    lin (project I pa) = ∑ j ∈ Finset.range (pa.map ns.get).length,</span>
+<span id="cb38-66"><a href="#cb38-66" aria-hidden="true" tabindex="-1"></a>      (coords (project I pa)).getD j <span class="dv">0</span> * stride (pa.map ns.get) j :=</span>
+<span id="cb38-67"><a href="#cb38-67" aria-hidden="true" tabindex="-1"></a>  lin_eq_sum_stride _</span>
+<span id="cb38-68"><a href="#cb38-68" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-69"><a href="#cb38-69" aria-hidden="true" tabindex="-1"></a><span class="do">/-- With a repeated axis the result-stride form reads the wrong entry: for one result axis of</span></span>
+<span id="cb38-70"><a href="#cb38-70" aria-hidden="true" tabindex="-1"></a><span class="do">size two and a factor carrying it twice (the diagonal of a `2 × 2` table), the result-stride</span></span>
+<span id="cb38-71"><a href="#cb38-71" aria-hidden="true" tabindex="-1"></a><span class="do">offset of state `1` is `1`, but the diagonal entry `(1, 1)` sits at position `3`. -/</span></span>
+<span id="cb38-72"><a href="#cb38-72" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> resultStride_repeated :</span>
+<span id="cb38-73"><a href="#cb38-73" aria-hidden="true" tabindex="-1"></a>    offset (ns := [<span class="dv">2</span>]) [⟨<span class="dv">0</span>, <span class="kw">by</span> decide⟩, ⟨<span class="dv">0</span>, <span class="kw">by</span> decide⟩] (cons ⟨<span class="dv">1</span>, <span class="kw">by</span> decide⟩ nil) = <span class="dv">1</span> ∧</span>
+<span id="cb38-74"><a href="#cb38-74" aria-hidden="true" tabindex="-1"></a>      lin (project (ns := [<span class="dv">2</span>]) (cons ⟨<span class="dv">1</span>, <span class="kw">by</span> decide⟩ nil) [⟨<span class="dv">0</span>, <span class="kw">by</span> decide⟩, ⟨<span class="dv">0</span>, <span class="kw">by</span> decide⟩]) = <span class="dv">3</span> := <span class="kw">by</span></span>
+<span id="cb38-75"><a href="#cb38-75" aria-hidden="true" tabindex="-1"></a>  <span class="cf">decide</span></span></code></pre></div>
+<h2 id="the-odometer-loop-of-_product_into">The odometer loop of
+<code>_product_into!</code></h2>
+<div class="sourceCode" id="cb39"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="do">/-- `∑ₖ posₖ * sₖ` over two lists. -/</span></span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> dot (pos : List ℕ) (s : List ℤ) : ℤ := (List.zipWith (<span class="kw">fun</span> p t =&gt; (p : ℤ) * t) pos s).sum</span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a><span class="do">/-- One pass of the inner `for k in 1:d` loop, for one table offset:</span></span>
+<span id="cb39-5"><a href="#cb39-5" aria-hidden="true" tabindex="-1"></a><span class="do">`pos[k] += 1; off += s[k]; pos[k] &lt; sz[k] &amp;&amp; break; pos[k] = 0; off -= s[k] * sz[k]`. -/</span></span>
+<span id="cb39-6"><a href="#cb39-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> bump : List ℕ → List ℕ → List ℤ → ℤ → List ℕ × ℤ</span>
+<span id="cb39-7"><a href="#cb39-7" aria-hidden="true" tabindex="-1"></a>  | n :: sz, p :: pos, t :: s, off =&gt;</span>
+<span id="cb39-8"><a href="#cb39-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">if</span> p + <span class="dv">1</span> &lt; n <span class="kw">then</span> ((p + <span class="dv">1</span>) :: pos, off + t)</span>
+<span id="cb39-9"><a href="#cb39-9" aria-hidden="true" tabindex="-1"></a>    <span class="kw">else</span></span>
+<span id="cb39-10"><a href="#cb39-10" aria-hidden="true" tabindex="-1"></a>      <span class="kw">let</span> r := bump sz pos s (off + t - t * n)</span>
+<span id="cb39-11"><a href="#cb39-11" aria-hidden="true" tabindex="-1"></a>      (<span class="dv">0</span> :: r<span class="fl">.1</span>, r<span class="fl">.2</span>)</span>
+<span id="cb39-12"><a href="#cb39-12" aria-hidden="true" tabindex="-1"></a>  | _, pos, _, off =&gt; (pos, off)</span>
+<span id="cb39-13"><a href="#cb39-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-14"><a href="#cb39-14" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> dot_cons (p : ℕ) (pos : List ℕ) (t : ℤ) (s : List ℤ) :</span>
+<span id="cb39-15"><a href="#cb39-15" aria-hidden="true" tabindex="-1"></a>    dot (p :: pos) (t :: s) = p * t + dot pos s := <span class="kw">by</span></span>
+<span id="cb39-16"><a href="#cb39-16" aria-hidden="true" tabindex="-1"></a>  <span class="cf">simp</span> [dot]</span>
+<span id="cb39-17"><a href="#cb39-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-18"><a href="#cb39-18" aria-hidden="true" tabindex="-1"></a><span class="do">/-- **The odometer step**: from the coordinates of `idx` and an offset equal to its stride sum</span></span>
+<span id="cb39-19"><a href="#cb39-19" aria-hidden="true" tabindex="-1"></a><span class="do">(plus any constant), `bump` reaches the coordinates of `next idx` and its stride sum. -/</span></span>
+<span id="cb39-20"><a href="#cb39-20" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> bump_spec : {sz : List ℕ} → (idx : MIdx sz) → (s : List ℤ) → s.length = sz.length →</span>
+<span id="cb39-21"><a href="#cb39-21" aria-hidden="true" tabindex="-1"></a>    (off : ℤ) → bump sz (coords idx) s (off + dot (coords idx) s) =</span>
+<span id="cb39-22"><a href="#cb39-22" aria-hidden="true" tabindex="-1"></a>      (coords (next idx), off + dot (coords (next idx)) s)</span>
+<span id="cb39-23"><a href="#cb39-23" aria-hidden="true" tabindex="-1"></a>  | [], idx, s, _, off =&gt; <span class="kw">by</span></span>
+<span id="cb39-24"><a href="#cb39-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">simp</span> [bump, coords]</span>
+<span id="cb39-25"><a href="#cb39-25" aria-hidden="true" tabindex="-1"></a>  | n :: sz, idx, [], hs, _ =&gt; <span class="kw">by</span> <span class="cf">simp</span> <span class="kw">at</span> hs</span>
+<span id="cb39-26"><a href="#cb39-26" aria-hidden="true" tabindex="-1"></a>  | n :: sz, idx, t :: s, hs, off =&gt; <span class="kw">by</span></span>
+<span id="cb39-27"><a href="#cb39-27" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> hs&#39; : s.length = sz.length := <span class="kw">by</span> <span class="cf">simpa</span> <span class="kw">using</span> hs</span>
+<span id="cb39-28"><a href="#cb39-28" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> hi := (head idx).isLt</span>
+<span id="cb39-29"><a href="#cb39-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [<span class="kw">show</span> idx = cons (head idx) (tail idx) <span class="kw">from</span> <span class="cf">rfl</span>]</span>
+<span id="cb39-30"><a href="#cb39-30" aria-hidden="true" tabindex="-1"></a>    <span class="cf">simp</span> only [coords_cons, dot_cons, bump]</span>
+<span id="cb39-31"><a href="#cb39-31" aria-hidden="true" tabindex="-1"></a>    <span class="cf">by_cases</span> h : (head idx : ℕ) + <span class="dv">1</span> &lt; n</span>
+<span id="cb39-32"><a href="#cb39-32" aria-hidden="true" tabindex="-1"></a>    · <span class="cf">rw</span> [if_pos h]</span>
+<span id="cb39-33"><a href="#cb39-33" aria-hidden="true" tabindex="-1"></a>      <span class="cf">simp</span> only [next, head_cons, tail_cons, h, dite_true, coords_cons, dot_cons,</span>
+<span id="cb39-34"><a href="#cb39-34" aria-hidden="true" tabindex="-1"></a>        Prod.mk.injEq, true_and]</span>
+<span id="cb39-35"><a href="#cb39-35" aria-hidden="true" tabindex="-1"></a>      <span class="cf">push_cast</span></span>
+<span id="cb39-36"><a href="#cb39-36" aria-hidden="true" tabindex="-1"></a>      <span class="cf">ring</span></span>
+<span id="cb39-37"><a href="#cb39-37" aria-hidden="true" tabindex="-1"></a>    · <span class="cf">rw</span> [if_neg h]</span>
+<span id="cb39-38"><a href="#cb39-38" aria-hidden="true" tabindex="-1"></a>      <span class="kw">have</span> he : (head idx : ℕ) + <span class="dv">1</span> = n := <span class="kw">by</span> <span class="cf">omega</span></span>
+<span id="cb39-39"><a href="#cb39-39" aria-hidden="true" tabindex="-1"></a>      <span class="kw">have</span> hoff : off + ((head idx : ℕ) * t + dot (coords (tail idx)) s) + t - t * n =</span>
+<span id="cb39-40"><a href="#cb39-40" aria-hidden="true" tabindex="-1"></a>          off + dot (coords (tail idx)) s := <span class="kw">by</span></span>
+<span id="cb39-41"><a href="#cb39-41" aria-hidden="true" tabindex="-1"></a>        <span class="kw">have</span> hn : (n : ℤ) = ((head idx : ℕ) : ℤ) + <span class="dv">1</span> := <span class="kw">by</span> exact_mod_cast he.symm</span>
+<span id="cb39-42"><a href="#cb39-42" aria-hidden="true" tabindex="-1"></a>        <span class="cf">rw</span> [hn]</span>
+<span id="cb39-43"><a href="#cb39-43" aria-hidden="true" tabindex="-1"></a>        <span class="cf">ring</span></span>
+<span id="cb39-44"><a href="#cb39-44" aria-hidden="true" tabindex="-1"></a>      <span class="cf">simp</span> only [hoff, bump_spec (tail idx) s hs&#39; off, next, head_cons, tail_cons, h,</span>
+<span id="cb39-45"><a href="#cb39-45" aria-hidden="true" tabindex="-1"></a>        dite_false, coords_cons, dot_cons, Nat.cast_zero, zero_mul, zero_add]</span>
+<span id="cb39-46"><a href="#cb39-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-47"><a href="#cb39-47" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The loop of `_product_into!`: write `a[ai] * b[bi]`, then advance the shared odometer and</span></span>
+<span id="cb39-48"><a href="#cb39-48" aria-hidden="true" tabindex="-1"></a><span class="do">both offsets. -/</span></span>
+<span id="cb39-49"><a href="#cb39-49" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> productLoop [Mul α] (sz : List ℕ) (as bs : List ℤ) (a b : ℕ → α) :</span>
+<span id="cb39-50"><a href="#cb39-50" aria-hidden="true" tabindex="-1"></a>    ℕ → List ℕ → ℤ → ℤ → List α</span>
+<span id="cb39-51"><a href="#cb39-51" aria-hidden="true" tabindex="-1"></a>  | <span class="dv">0</span>, _, _, _ =&gt; []</span>
+<span id="cb39-52"><a href="#cb39-52" aria-hidden="true" tabindex="-1"></a>  | k + <span class="dv">1</span>, pos, ai, bi =&gt;</span>
+<span id="cb39-53"><a href="#cb39-53" aria-hidden="true" tabindex="-1"></a>    (a ai.toNat * b bi.toNat) ::</span>
+<span id="cb39-54"><a href="#cb39-54" aria-hidden="true" tabindex="-1"></a>      productLoop sz as bs a b k (bump sz pos as ai).<span class="dv">1</span> (bump sz pos as ai).<span class="dv">2</span> (bump sz pos bs bi).<span class="dv">2</span></span>
+<span id="cb39-55"><a href="#cb39-55" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-56"><a href="#cb39-56" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> productLoop_eq [Mul α] (sz : List ℕ) (as bs : List ℤ) (has : as.length = sz.length)</span>
+<span id="cb39-57"><a href="#cb39-57" aria-hidden="true" tabindex="-1"></a>    (hbs : bs.length = sz.length) (a b : ℕ → α) (k : ℕ) (idx : MIdx sz) :</span>
+<span id="cb39-58"><a href="#cb39-58" aria-hidden="true" tabindex="-1"></a>    productLoop sz as bs a b k (coords idx) (dot (coords idx) as) (dot (coords idx) bs) =</span>
+<span id="cb39-59"><a href="#cb39-59" aria-hidden="true" tabindex="-1"></a>      (List.range k).map <span class="kw">fun</span> j =&gt;</span>
+<span id="cb39-60"><a href="#cb39-60" aria-hidden="true" tabindex="-1"></a>        a (dot (coords (next^[j] idx)) as).toNat * b (dot (coords (next^[j] idx)) bs).toNat := <span class="kw">by</span></span>
+<span id="cb39-61"><a href="#cb39-61" aria-hidden="true" tabindex="-1"></a>  <span class="cf">induction</span> k <span class="kw">generalizing</span> idx <span class="kw">with</span></span>
+<span id="cb39-62"><a href="#cb39-62" aria-hidden="true" tabindex="-1"></a>  | zero =&gt; <span class="cf">rfl</span></span>
+<span id="cb39-63"><a href="#cb39-63" aria-hidden="true" tabindex="-1"></a>  | succ k ih =&gt;</span>
+<span id="cb39-64"><a href="#cb39-64" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> ha := bump_spec idx as has <span class="dv">0</span></span>
+<span id="cb39-65"><a href="#cb39-65" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> hb := bump_spec idx bs hbs <span class="dv">0</span></span>
+<span id="cb39-66"><a href="#cb39-66" aria-hidden="true" tabindex="-1"></a>    <span class="cf">simp</span> only [zero_add] <span class="kw">at</span> ha hb</span>
+<span id="cb39-67"><a href="#cb39-67" aria-hidden="true" tabindex="-1"></a>    <span class="cf">simp</span> only [productLoop, ha, hb]</span>
+<span id="cb39-68"><a href="#cb39-68" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [ih, List.range_succ_eq_map, List.map_cons, List.map_map]</span>
+<span id="cb39-69"><a href="#cb39-69" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rfl</span></span>
+<span id="cb39-70"><a href="#cb39-70" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-71"><a href="#cb39-71" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The coordinates of the all-zero multi-index. -/</span></span>
+<span id="cb39-72"><a href="#cb39-72" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> coords_of_lin_eq_zero : {sz : List ℕ} → (z : MIdx sz) → lin z = <span class="dv">0</span> →</span>
+<span id="cb39-73"><a href="#cb39-73" aria-hidden="true" tabindex="-1"></a>    coords z = List.replicate sz.length <span class="dv">0</span></span>
+<span id="cb39-74"><a href="#cb39-74" aria-hidden="true" tabindex="-1"></a>  | [], _, _ =&gt; <span class="cf">rfl</span></span>
+<span id="cb39-75"><a href="#cb39-75" aria-hidden="true" tabindex="-1"></a>  | n :: sz, z, h =&gt; <span class="kw">by</span></span>
+<span id="cb39-76"><a href="#cb39-76" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> hn : <span class="dv">0</span> &lt; n := lt_of_le_of_lt (Nat.zero_le _) (head z).isLt</span>
+<span id="cb39-77"><a href="#cb39-77" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [<span class="kw">show</span> z = cons (head z) (tail z) <span class="kw">from</span> <span class="cf">rfl</span>] <span class="kw">at</span> h ⊢</span>
+<span id="cb39-78"><a href="#cb39-78" aria-hidden="true" tabindex="-1"></a>    <span class="cf">simp</span> only [lin_cons] <span class="kw">at</span> h</span>
+<span id="cb39-79"><a href="#cb39-79" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> h0 : (head z : ℕ) = <span class="dv">0</span> := <span class="kw">by</span> <span class="cf">omega</span></span>
+<span id="cb39-80"><a href="#cb39-80" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> ht : lin (tail z) = <span class="dv">0</span> := <span class="kw">by</span></span>
+<span id="cb39-81"><a href="#cb39-81" aria-hidden="true" tabindex="-1"></a>      <span class="cf">rcases</span> Nat.mul_eq_zero<span class="fl">.1</span> (<span class="kw">by</span> <span class="cf">omega</span> : n * lin (tail z) = <span class="dv">0</span>) <span class="kw">with</span> h&#39; | h&#39;</span>
+<span id="cb39-82"><a href="#cb39-82" aria-hidden="true" tabindex="-1"></a>      · <span class="cf">omega</span></span>
+<span id="cb39-83"><a href="#cb39-83" aria-hidden="true" tabindex="-1"></a>      · <span class="cf">exact</span> h&#39;</span>
+<span id="cb39-84"><a href="#cb39-84" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [coords_cons, h0, coords_of_lin_eq_zero (tail z) ht]</span>
+<span id="cb39-85"><a href="#cb39-85" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rfl</span></span>
+<span id="cb39-86"><a href="#cb39-86" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-87"><a href="#cb39-87" aria-hidden="true" tabindex="-1"></a><span class="do">/-- `_product_into!(out, sz, a, as, b, bs)` with `pos = zeros`, `ai = bi = 1` (0-based here). -/</span></span>
+<span id="cb39-88"><a href="#cb39-88" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> productInto [Mul α] (sz : List ℕ) (as bs : List ℤ) (a b : ℕ → α) : List α :=</span>
+<span id="cb39-89"><a href="#cb39-89" aria-hidden="true" tabindex="-1"></a>  productLoop sz as bs a b sz.prod (List.replicate sz.length <span class="dv">0</span>) <span class="dv">0</span> <span class="dv">0</span></span>
+<span id="cb39-90"><a href="#cb39-90" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-91"><a href="#cb39-91" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> dot_ofFn {sz : List ℕ} (I : MIdx sz) (f : Fin sz.length → ℕ) :</span>
+<span id="cb39-92"><a href="#cb39-92" aria-hidden="true" tabindex="-1"></a>    dot (coords I) (List.ofFn <span class="kw">fun</span> k =&gt; (f k : ℤ)) = ((∑ k, (coord I k : ℕ) * f k : ℕ) : ℤ) := <span class="kw">by</span></span>
+<span id="cb39-93"><a href="#cb39-93" aria-hidden="true" tabindex="-1"></a>  <span class="cf">induction</span> sz <span class="kw">with</span></span>
+<span id="cb39-94"><a href="#cb39-94" aria-hidden="true" tabindex="-1"></a>  | nil =&gt; <span class="cf">simp</span> [dot, coords]</span>
+<span id="cb39-95"><a href="#cb39-95" aria-hidden="true" tabindex="-1"></a>  | cons n sz ih =&gt;</span>
+<span id="cb39-96"><a href="#cb39-96" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [<span class="kw">show</span> I = cons (head I) (tail I) <span class="kw">from</span> <span class="cf">rfl</span>, List.ofFn_succ, coords_cons, dot_cons]</span>
+<span id="cb39-97"><a href="#cb39-97" aria-hidden="true" tabindex="-1"></a>    <span class="kw">show</span> _ = ((∑ k : Fin (sz.length + <span class="dv">1</span>), (coord (cons (head I) (tail I)) k : ℕ) * f k : ℕ) : ℤ)</span>
+<span id="cb39-98"><a href="#cb39-98" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [Fin.sum_univ_succ, ih (tail I) (<span class="kw">fun</span> k =&gt; f k.succ)]</span>
+<span id="cb39-99"><a href="#cb39-99" aria-hidden="true" tabindex="-1"></a>    <span class="cf">push_cast</span></span>
+<span id="cb39-100"><a href="#cb39-100" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rfl</span></span>
+<span id="cb39-101"><a href="#cb39-101" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-102"><a href="#cb39-102" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The result strides of a factor as the integer vector the loop uses. -/</span></span>
+<span id="cb39-103"><a href="#cb39-103" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> strides (ns : List ℕ) (pa : List (Fin ns.length)) : List ℤ :=</span>
+<span id="cb39-104"><a href="#cb39-104" aria-hidden="true" tabindex="-1"></a>  List.ofFn <span class="kw">fun</span> k =&gt; (resultStride ns pa k : ℤ)</span>
+<span id="cb39-105"><a href="#cb39-105" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-106"><a href="#cb39-106" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> dot_strides (pa : List (Fin ns.length)) (hpa : pa.Nodup) (I : MIdx ns) :</span>
+<span id="cb39-107"><a href="#cb39-107" aria-hidden="true" tabindex="-1"></a>    dot (coords I) (strides ns pa) = lin (project I pa) := <span class="kw">by</span></span>
+<span id="cb39-108"><a href="#cb39-108" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [strides, dot_ofFn, <span class="kw">show</span> (∑ k, (coord I k : ℕ) * resultStride ns pa k) = offset pa I</span>
+<span id="cb39-109"><a href="#cb39-109" aria-hidden="true" tabindex="-1"></a>    <span class="kw">from</span> <span class="cf">rfl</span>, offset_eq_lin pa hpa]</span>
+<span id="cb39-110"><a href="#cb39-110" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-111"><a href="#cb39-111" aria-hidden="true" tabindex="-1"></a><span class="do">/-- The projection of the all-zero multi-index has linear position zero. -/</span></span>
+<span id="cb39-112"><a href="#cb39-112" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> lin_project_zero (z : MIdx ns) (hz : lin z = <span class="dv">0</span>) (pa : List (Fin ns.length)) :</span>
+<span id="cb39-113"><a href="#cb39-113" aria-hidden="true" tabindex="-1"></a>    lin (project z pa) = <span class="dv">0</span> := <span class="kw">by</span></span>
+<span id="cb39-114"><a href="#cb39-114" aria-hidden="true" tabindex="-1"></a>  <span class="cf">induction</span> pa <span class="kw">with</span></span>
+<span id="cb39-115"><a href="#cb39-115" aria-hidden="true" tabindex="-1"></a>  | nil =&gt; <span class="cf">rfl</span></span>
+<span id="cb39-116"><a href="#cb39-116" aria-hidden="true" tabindex="-1"></a>  | cons p pa ih =&gt;</span>
+<span id="cb39-117"><a href="#cb39-117" aria-hidden="true" tabindex="-1"></a>    <span class="kw">show</span> (coord z p : ℕ) + ns.get p * lin (project z pa) = <span class="dv">0</span></span>
+<span id="cb39-118"><a href="#cb39-118" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [coord_eq_zero_of_lin z hz p, ih, mul_zero, add_zero]</span>
+<span id="cb39-119"><a href="#cb39-119" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-120"><a href="#cb39-120" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> get_eq_lin (A : Tensor α ns) (idx : MIdx ns) : A.get idx = A ⟨lin idx, lin_lt idx⟩ := <span class="kw">by</span></span>
+<span id="cb39-121"><a href="#cb39-121" aria-hidden="true" tabindex="-1"></a>  <span class="cf">unfold</span> Tensor.get</span>
+<span id="cb39-122"><a href="#cb39-122" aria-hidden="true" tabindex="-1"></a>  <span class="cf">congr</span> <span class="dv">1</span></span>
+<span id="cb39-123"><a href="#cb39-123" aria-hidden="true" tabindex="-1"></a>  <span class="cf">exact</span> Fin.ext (toFlat_val idx)</span>
+<span id="cb39-124"><a href="#cb39-124" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-125"><a href="#cb39-125" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> length_productLoop [Mul α] (sz : List ℕ) (as bs : List ℤ) (a b : ℕ → α) (k : ℕ)</span>
+<span id="cb39-126"><a href="#cb39-126" aria-hidden="true" tabindex="-1"></a>    (pos : List ℕ) (ai bi : ℤ) : (productLoop sz as bs a b k pos ai bi).length = k := <span class="kw">by</span></span>
+<span id="cb39-127"><a href="#cb39-127" aria-hidden="true" tabindex="-1"></a>  <span class="cf">induction</span> k <span class="kw">generalizing</span> pos ai bi <span class="kw">with</span></span>
+<span id="cb39-128"><a href="#cb39-128" aria-hidden="true" tabindex="-1"></a>  | zero =&gt; <span class="cf">rfl</span></span>
+<span id="cb39-129"><a href="#cb39-129" aria-hidden="true" tabindex="-1"></a>  | succ k ih =&gt; <span class="cf">simp</span> [productLoop, ih]</span>
+<span id="cb39-130"><a href="#cb39-130" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-131"><a href="#cb39-131" aria-hidden="true" tabindex="-1"></a><span class="do">/-- **The stride-based product computes the named product, entry by entry.** For factors</span></span>
+<span id="cb39-132"><a href="#cb39-132" aria-hidden="true" tabindex="-1"></a><span class="do">without repeated variables whose flat tables `a`, `b` store `F`, `G` column-major, the entry</span></span>
+<span id="cb39-133"><a href="#cb39-133" aria-hidden="true" tabindex="-1"></a><span class="do">that `_product_into!` writes at the column-major position of the joint multi-index `I` is</span></span>
+<span id="cb39-134"><a href="#cb39-134" aria-hidden="true" tabindex="-1"></a><span class="do">`F[I[pa]] * G[I[pb]]`. -/</span></span>
+<span id="cb39-135"><a href="#cb39-135" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> productInto_getElem? [Mul α] (pa pb : List (Fin ns.length)) (hpa : pa.Nodup)</span>
+<span id="cb39-136"><a href="#cb39-136" aria-hidden="true" tabindex="-1"></a>    (hpb : pb.Nodup) (F : Tensor α (pa.map ns.get)) (G : Tensor α (pb.map ns.get))</span>
+<span id="cb39-137"><a href="#cb39-137" aria-hidden="true" tabindex="-1"></a>    (a b : ℕ → α) (ha : ∀ J, a (lin J) = F.get J) (hb : ∀ J, b (lin J) = G.get J)</span>
+<span id="cb39-138"><a href="#cb39-138" aria-hidden="true" tabindex="-1"></a>    (I : MIdx ns) :</span>
+<span id="cb39-139"><a href="#cb39-139" aria-hidden="true" tabindex="-1"></a>    (productInto ns (strides ns pa) (strides ns pb) a b)[lin I]? =</span>
+<span id="cb39-140"><a href="#cb39-140" aria-hidden="true" tabindex="-1"></a>      some ((namedProduct pa pb F G).get I) := <span class="kw">by</span></span>
+<span id="cb39-141"><a href="#cb39-141" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> hpos : <span class="dv">0</span> &lt; ns.prod := lt_of_le_of_lt (Nat.zero_le _) (lin_lt I)</span>
+<span id="cb39-142"><a href="#cb39-142" aria-hidden="true" tabindex="-1"></a>  <span class="cf">obtain</span> ⟨z, hz⟩ := lin_surjective (ns := ns) <span class="dv">0</span> hpos</span>
+<span id="cb39-143"><a href="#cb39-143" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> hlen : ∀ pa : List (Fin ns.length), (strides ns pa).length = ns.length := <span class="kw">by</span></span>
+<span id="cb39-144"><a href="#cb39-144" aria-hidden="true" tabindex="-1"></a>    <span class="cf">intro</span> pa; <span class="cf">simp</span> [strides]</span>
+<span id="cb39-145"><a href="#cb39-145" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> hstart : productInto ns (strides ns pa) (strides ns pb) a b =</span>
+<span id="cb39-146"><a href="#cb39-146" aria-hidden="true" tabindex="-1"></a>      productLoop ns (strides ns pa) (strides ns pb) a b ns.prod (coords z)</span>
+<span id="cb39-147"><a href="#cb39-147" aria-hidden="true" tabindex="-1"></a>        (dot (coords z) (strides ns pa)) (dot (coords z) (strides ns pb)) := <span class="kw">by</span></span>
+<span id="cb39-148"><a href="#cb39-148" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [dot_strides pa hpa, dot_strides pb hpb, lin_project_zero z hz, lin_project_zero z hz,</span>
+<span id="cb39-149"><a href="#cb39-149" aria-hidden="true" tabindex="-1"></a>      coords_of_lin_eq_zero z hz]</span>
+<span id="cb39-150"><a href="#cb39-150" aria-hidden="true" tabindex="-1"></a>    all_goals <span class="cf">rfl</span></span>
+<span id="cb39-151"><a href="#cb39-151" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [hstart, productLoop_eq _ _ _ (hlen pa) (hlen pb), List.getElem?_map,</span>
+<span id="cb39-152"><a href="#cb39-152" aria-hidden="true" tabindex="-1"></a>    List.getElem?_range (lin_lt I), Option.map_some]</span>
+<span id="cb39-153"><a href="#cb39-153" aria-hidden="true" tabindex="-1"></a>  <span class="cf">refine</span> congrArg some ?_</span>
+<span id="cb39-154"><a href="#cb39-154" aria-hidden="true" tabindex="-1"></a>  <span class="kw">show</span> a (dot (coords (next^[lin I] z)) (strides ns pa)).toNat *</span>
+<span id="cb39-155"><a href="#cb39-155" aria-hidden="true" tabindex="-1"></a>      b (dot (coords (next^[lin I] z)) (strides ns pb)).toNat = _</span>
+<span id="cb39-156"><a href="#cb39-156" aria-hidden="true" tabindex="-1"></a>  <span class="kw">have</span> hiter : next^[lin I] z = I := <span class="kw">by</span></span>
+<span id="cb39-157"><a href="#cb39-157" aria-hidden="true" tabindex="-1"></a>    <span class="cf">apply</span> lin_injective</span>
+<span id="cb39-158"><a href="#cb39-158" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [lin_iterate_next z hz, Nat.mod_eq_of_lt (lin_lt I)]</span>
+<span id="cb39-159"><a href="#cb39-159" aria-hidden="true" tabindex="-1"></a>  <span class="cf">rw</span> [hiter, dot_strides pa hpa, dot_strides pb hpb, Int.toNat_natCast, Int.toNat_natCast, ha, hb,</span>
+<span id="cb39-160"><a href="#cb39-160" aria-hidden="true" tabindex="-1"></a>    namedProduct, Tensor.get_ofFun]</span>
+<span id="cb39-161"><a href="#cb39-161" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-162"><a href="#cb39-162" aria-hidden="true" tabindex="-1"></a><span class="do">/-- **The loop output is the flat column-major table of the named product.** -/</span></span>
+<span id="cb39-163"><a href="#cb39-163" aria-hidden="true" tabindex="-1"></a><span class="kw">theorem</span> productInto_eq [Mul α] (pa pb : List (Fin ns.length)) (hpa : pa.Nodup)</span>
+<span id="cb39-164"><a href="#cb39-164" aria-hidden="true" tabindex="-1"></a>    (hpb : pb.Nodup) (F : Tensor α (pa.map ns.get)) (G : Tensor α (pb.map ns.get))</span>
+<span id="cb39-165"><a href="#cb39-165" aria-hidden="true" tabindex="-1"></a>    (a b : ℕ → α) (ha : ∀ J, a (lin J) = F.get J) (hb : ∀ J, b (lin J) = G.get J) :</span>
+<span id="cb39-166"><a href="#cb39-166" aria-hidden="true" tabindex="-1"></a>    productInto ns (strides ns pa) (strides ns pb) a b =</span>
+<span id="cb39-167"><a href="#cb39-167" aria-hidden="true" tabindex="-1"></a>      List.ofFn (namedProduct pa pb F G) := <span class="kw">by</span></span>
+<span id="cb39-168"><a href="#cb39-168" aria-hidden="true" tabindex="-1"></a>  <span class="cf">apply</span> List.ext_getElem?</span>
+<span id="cb39-169"><a href="#cb39-169" aria-hidden="true" tabindex="-1"></a>  <span class="cf">intro</span> p</span>
+<span id="cb39-170"><a href="#cb39-170" aria-hidden="true" tabindex="-1"></a>  <span class="cf">by_cases</span> hp : p &lt; ns.prod</span>
+<span id="cb39-171"><a href="#cb39-171" aria-hidden="true" tabindex="-1"></a>  · <span class="cf">obtain</span> ⟨I, rfl⟩ := lin_surjective (ns := ns) p hp</span>
+<span id="cb39-172"><a href="#cb39-172" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [productInto_getElem? pa pb hpa hpb F G a b ha hb I, List.getElem?_ofFn,</span>
+<span id="cb39-173"><a href="#cb39-173" aria-hidden="true" tabindex="-1"></a>      dif_pos (lin_lt I), get_eq_lin]</span>
+<span id="cb39-174"><a href="#cb39-174" aria-hidden="true" tabindex="-1"></a>  · <span class="kw">have</span> h1 : (productInto ns (strides ns pa) (strides ns pb) a b).length ≤ p := <span class="kw">by</span></span>
+<span id="cb39-175"><a href="#cb39-175" aria-hidden="true" tabindex="-1"></a>      <span class="cf">rw</span> [productInto, length_productLoop]</span>
+<span id="cb39-176"><a href="#cb39-176" aria-hidden="true" tabindex="-1"></a>      <span class="cf">omega</span></span>
+<span id="cb39-177"><a href="#cb39-177" aria-hidden="true" tabindex="-1"></a>    <span class="kw">have</span> h2 : (List.ofFn (namedProduct pa pb F G)).length ≤ p := <span class="kw">by</span></span>
+<span id="cb39-178"><a href="#cb39-178" aria-hidden="true" tabindex="-1"></a>      <span class="cf">rw</span> [List.length_ofFn]</span>
+<span id="cb39-179"><a href="#cb39-179" aria-hidden="true" tabindex="-1"></a>      <span class="cf">omega</span></span>
+<span id="cb39-180"><a href="#cb39-180" aria-hidden="true" tabindex="-1"></a>    <span class="cf">rw</span> [List.getElem?_eq_none h1, List.getElem?_eq_none h2]</span>
+<span id="cb39-181"><a href="#cb39-181" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-182"><a href="#cb39-182" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> FiniteKernelsProofs.Layout</span></code></pre></div>
 <!-- FiniteKernelsProofs/Roadmap.lean -->
 <h1 id="roadmap">Roadmap</h1>
-<div class="sourceCode" id="cb23"><pre
-class="sourceCode lean"><code class="sourceCode lean"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> FiniteKernelsProofs.Theory.FinStoch</span></code></pre></div>
+<div class="sourceCode" id="cb40"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> FiniteKernelsProofs.Theory.FinStoch</span></code></pre></div>
 <p>The two former holes, <code>MonoidalCategory FinStoch</code> and
 <code>MarkovCategory FinStoch</code>, are now proved in
 <code>Theory/FinStoch.lean</code>, imported by the default target and
 included in the axiom audit. This compatibility module has no unproved
 declarations.</p>
-<p>Remaining work is a representation bridge to Julia’s named axes and
-floating-point arrays. The Mathlib instance by itself does not establish
-that bridge, and no open-network category or semantic functor is
-constructed here.</p>
-<div class="sourceCode" id="cb24"><pre
-class="sourceCode lean"><code class="sourceCode lean"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="kw">namespace</span> FiniteKernelsProofs.Roadmap</span>
-<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Compatibility name for the finite stochastic category now in the default library. -/</span></span>
-<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="kw">abbrev</span> FinStoch := FiniteKernelsProofs.FinStoch</span>
-<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> FiniteKernelsProofs.Roadmap</span></code></pre></div>
+<p>The layout half of the representation bridge to Julia’s arrays is now
+in the default target: <code>Layout/ColumnMajor.lean</code>
+(column-major storage; the linear index is a bijection onto
+<code>Fin (∏ sizes)</code> and equals <code>_linear_index</code>),
+<code>Layout/KernelLayout.lean</code> (outputs-first kernel tables,
+<code>kernel_matrix</code>, <code>probability</code>, and the two
+<code>cpt</code> <code>permutedims</code> as mutually inverse,
+entry-preserving conversions) and <code>Layout/Product.lean</code> (the
+result strides and odometer of
+<code>BayesianNetworkInference.multiply</code> compute the named product
+for factors without repeated variables). Labels
+(<code>label_index</code>) are modelled only as positions.</p>
+<p>Remaining: floating-point values and IEEE arithmetic, and any proof
+that the Julia code executes these definitions (the correspondence is
+read off the source). <code>_broadcastable</code> is not modelled. The
+Mathlib instance by itself does not establish that bridge, and no
+open-network category or semantic functor is constructed here.</p>
+<div class="sourceCode" id="cb41"><pre
+class="sourceCode lean"><code class="sourceCode lean"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="kw">namespace</span> FiniteKernelsProofs.Roadmap</span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a><span class="do">/-- Compatibility name for the finite stochastic category now in the default library. -/</span></span>
+<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a><span class="kw">abbrev</span> FinStoch := FiniteKernelsProofs.FinStoch</span>
+<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span> FiniteKernelsProofs.Roadmap</span></code></pre></div>
 </body>
 </html>

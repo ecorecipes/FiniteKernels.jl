@@ -3,3 +3,6 @@ import FiniteKernelsProofs.Finite.Kernel
 import FiniteKernelsProofs.Finite.Laws
 import FiniteKernelsProofs.Theory.Correspondence
 import FiniteKernelsProofs.Theory.FinStoch
+import FiniteKernelsProofs.Layout.ColumnMajor
+import FiniteKernelsProofs.Layout.KernelLayout
+import FiniteKernelsProofs.Layout.Product

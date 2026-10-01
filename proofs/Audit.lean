@@ -64,3 +64,58 @@ open FiniteKernelsProofs.Finite.Kernel
 #print axioms FiniteKernelsProofs.FinStoch.discard_natural
 #print axioms FiniteKernelsProofs.FinStoch.copy_natural_iff
 #print axioms FiniteKernelsProofs.FinStoch.no_hom_to_empty
+
+-- Layout/ColumnMajor.lean: column-major storage and its linear index
+#print axioms FiniteKernelsProofs.Layout.MIdx.coords_injective
+#print axioms FiniteKernelsProofs.Layout.MIdx.appendEquiv
+#print axioms FiniteKernelsProofs.Layout.MIdx.coords_append
+#print axioms FiniteKernelsProofs.Layout.MIdx.lin_lt
+#print axioms FiniteKernelsProofs.Layout.MIdx.lin_eq_sum_stride
+#print axioms FiniteKernelsProofs.Layout.MIdx.juliaLinearIndex_coords
+#print axioms FiniteKernelsProofs.Layout.MIdx.toFlat
+#print axioms FiniteKernelsProofs.Layout.MIdx.toFlat_val
+#print axioms FiniteKernelsProofs.Layout.MIdx.lin_injective
+#print axioms FiniteKernelsProofs.Layout.MIdx.lin_surjective
+#print axioms FiniteKernelsProofs.Layout.MIdx.linearIndex_bijective
+#print axioms FiniteKernelsProofs.Layout.MIdx.card
+#print axioms FiniteKernelsProofs.Layout.MIdx.lin_append
+#print axioms FiniteKernelsProofs.Layout.MIdx.lin_next
+#print axioms FiniteKernelsProofs.Layout.MIdx.lin_iterate_next
+#print axioms FiniteKernelsProofs.Layout.Tensor.equivFun
+#print axioms FiniteKernelsProofs.Layout.Tensor.get_eq_juliaLinearIndex
+
+-- Layout/KernelLayout.lean: outputs-first kernels, the CPT layout and `cpt`
+#print axioms FiniteKernelsProofs.Layout.KernelTable.kernelEquiv
+#print axioms FiniteKernelsProofs.Layout.KernelTable.kernelMatrix_toFlat
+#print axioms FiniteKernelsProofs.Layout.KernelTable.probability_linear
+#print axioms FiniteKernelsProofs.Layout.get_cptToKernel
+#print axioms FiniteKernelsProofs.Layout.get_kernelToCpt
+#print axioms FiniteKernelsProofs.Layout.toKernel_cptToKernel
+#print axioms FiniteKernelsProofs.Layout.entry_kernelToCpt
+#print axioms FiniteKernelsProofs.Layout.kernelToCpt_cptToKernel
+#print axioms FiniteKernelsProofs.Layout.cptToKernel_kernelToCpt
+#print axioms FiniteKernelsProofs.Layout.cptEquiv
+#print axioms FiniteKernelsProofs.Layout.cptToKernel_apply
+#print axioms FiniteKernelsProofs.Layout.coords_eq_of_perm
+#print axioms FiniteKernelsProofs.Layout.cptToKernel_permutedims
+#print axioms FiniteKernelsProofs.Layout.kernelToCpt_permutedims
+#print axioms FiniteKernelsProofs.Layout.normalised_cptToKernel_iff
+
+-- Layout/Product.lean: the stride-based factor product
+#print axioms FiniteKernelsProofs.Layout.MIdx.coord_eq_zero_of_lin
+#print axioms FiniteKernelsProofs.Layout.get_eq_lin
+#print axioms FiniteKernelsProofs.Layout.length_productLoop
+#print axioms FiniteKernelsProofs.Layout.resultStride_eq
+#print axioms FiniteKernelsProofs.Layout.resultStride_of_notMem
+#print axioms FiniteKernelsProofs.Layout.offset_eq_lin
+#print axioms FiniteKernelsProofs.Layout.coords_project
+#print axioms FiniteKernelsProofs.Layout.slotOffset_eq_lin
+#print axioms FiniteKernelsProofs.Layout.resultStride_repeated
+#print axioms FiniteKernelsProofs.Layout.bump_spec
+#print axioms FiniteKernelsProofs.Layout.productLoop_eq
+#print axioms FiniteKernelsProofs.Layout.coords_of_lin_eq_zero
+#print axioms FiniteKernelsProofs.Layout.dot_ofFn
+#print axioms FiniteKernelsProofs.Layout.dot_strides
+#print axioms FiniteKernelsProofs.Layout.lin_project_zero
+#print axioms FiniteKernelsProofs.Layout.productInto_getElem?
+#print axioms FiniteKernelsProofs.Layout.productInto_eq

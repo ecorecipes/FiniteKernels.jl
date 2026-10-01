@@ -52,7 +52,12 @@ This package depends on: nothing else in the ecosystem. It has no ecosystem sibl
 - `proofs/`: the Lean 4 / Mathlib library `FiniteKernelsProofs`, a finite model of the kernels and their laws.
   `Theory/FinStoch.lean` constructs the concrete monoidal, symmetric and Markov instances; the two former
   Roadmap holes are proved. No default or Roadmap target contains an unproved declaration. The instances
-  do not verify Julia arrays or construct a category of open-network syntax.
+  do not verify Julia arrays or construct a category of open-network syntax. `Layout/` models the array
+  layout exactly (values in any type, no Float64): column-major flat storage and its linear index (a bijection
+  onto `Fin (∏ sizes)`; the 1-based `_linear_index` is it plus one), outputs-first kernel tables, `kernel_matrix`, the
+  `(parents..., child)` CPT layout and the two `cpt` `permutedims` tuples (mutually inverse, entry-preserving),
+  and `BayesianNetworkInference.multiply`'s result strides and odometer (the named product, for factors without
+  repeated variables). It links index arithmetic, not Julia execution.
 
 ## Commands
 

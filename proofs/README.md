@@ -43,7 +43,10 @@ Module order (`MD_FILES` in the `Makefile`, the import order of `FiniteKernelsPr
 3. `Finite/Laws.lean`
 4. `Theory/Correspondence.lean`
 5. `Theory/FinStoch.lean`
-6. `Roadmap.lean` — compatibility import and remaining questions; no unproved declarations
+6. `Layout/ColumnMajor.lean` — column-major flat storage, the linear index and its bijection
+7. `Layout/KernelLayout.lean` — outputs-first kernel tables, `kernel_matrix`, `probability`, the CPT layout and `cpt`
+8. `Layout/Product.lean` — the stride-based factor product of `BayesianNetworkInference.multiply`
+9. `Roadmap.lean` — compatibility import and remaining questions; no unproved declarations
 
 ## What is formalised
 
@@ -106,10 +109,39 @@ kernels: no illicit naturality of copy has been assumed. Empty state types are a
 `no_hom_to_empty` proves why an inhabited type has no morphism into an empty one.
 
 Both former Roadmap holes are discharged. `Roadmap.lean` only preserves the old object name
-as an abbreviation. Still unproved here: a bridge to Julia's named axes and floating-point
-arrays. The open-network syntax category and its semantic functor into this `FinStoch` are a
+as an abbreviation. The layout half of the bridge to Julia's arrays is now modelled (next
+section); floating-point values and Julia execution are not. The open-network syntax category and its semantic functor into this `FinStoch` are a
 different claim, now proved in `CategoricalBayesianNetworks.jl/proofs/` (`OpenNet.category`,
 `OpenNet.Interpretation.functor`), not in this project.
+
+## Array layout
+
+`Layout/` models how the Julia packages store and index tables, exactly, with values in an
+arbitrary type (a multiplication for the product, `ℝ` only for normalisation). Labels are not
+modelled: an index is a label position (`label_index` minus one).
+
+| Lean | Statement | Julia |
+|---|---|---|
+| `MIdx ns`, `lin`, `toFlat` | in-bounds multi-indices of shape `ns`; `lin idx = i₁ + n₁ (i₂ + n₂ (…))` | `CartesianIndex`, `LinearIndices` (column-major) |
+| `linearIndex_bijective`, `toFlat_val`, `card` | the linear index is a bijection onto `Fin ns.prod` | `length(table) == prod(size(table))` |
+| `lin_eq_sum_stride` | `lin idx = ∑ₖ iₖ * ∏_{j<k} n_j` | strides of a column-major array |
+| `juliaLinearIndex_coords`, `Tensor.get_eq_juliaLinearIndex` | the 1-based fold returns `lin idx + 1` | `_linear_index` (`src/kernels.jl`) |
+| `Tensor.equivFun` | flat tables are functions of the multi-index | `vec`, `reshape` |
+| `lin_append` | `lin (y..., x...) = lin y + (∏ ns) * lin x` | `reshape(table, length(codom), length(dom))` |
+| `KernelTable.kernelEquiv`, `toFiniteKernel` | outputs-first tables are kernels `x ↦ y ↦ table[y..., x...]` (`Finite.Kernel` for `ℝ`) | `FiniteKernel.table` (ADR 0002) |
+| `kernelMatrix_toFlat` | `kernel_matrix` has `P(y \| x)` at `[lin y, lin x]` | `kernel_matrix` |
+| `probability_linear` | `probability(k, y, x)` reads `table[y..., x...]` | `probability` |
+| `cptToKernel_permutedims`, `kernelToCpt_permutedims` | the two conversions meet `permutedims`' contract for `(n + 1, 1, …, n)` and `(2, …, n + 1, 1)` | `cpt(parents, child, table)`, `cpt(k)` |
+| `cptEquiv`, `cptToKernel_apply`, `toKernel_cptToKernel` | mutually inverse; a bijection of storage positions; `P(child = i \| parents = x) = table[x..., i]` | same |
+| `normalised_cptToKernel_iff` | the kernel is normalised iff every CPT row sums to one over the child axis | the `cpt` normalisation check |
+| `resultStride_eq`, `offset_eq_lin` | `_result_strides` is the stride of the first slot carrying the axis; for a factor without repeated variables the stride sum is the position of the projected multi-index | `_result_strides` (`BayesianNetworkInference.jl/src/factors.jl`) |
+| `slotOffset_eq_lin`, `resultStride_repeated` | per-slot strides handle repeated axes; result strides do not | `BayesianNetworks` `_Factor`; `Factor` forbids repeats |
+| `bump_spec`, `productLoop_eq` | the odometer step reaches `next idx` and keeps each offset equal to its stride sum | `_product_into!` |
+| `productInto_getElem?`, `productInto_eq` | the loop output is the flat table of the named product `I ↦ F[I[pa]] * G[I[pb]]`, zero-dimensional case included | `multiply(f, g)` |
+
+This is a refinement of layouts and index arithmetic only. It does not show that the Julia code
+executes these definitions (that is read off the source), and it says nothing about IEEE
+rounding; `_broadcastable` (used by the log-domain product and valuation sums) is not modelled.
 
 ## Design notes
 

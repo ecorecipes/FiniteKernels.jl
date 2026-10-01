@@ -1055,6 +1055,1064 @@ end FiniteKernelsProofs
 ```
 
 
+<!-- FiniteKernelsProofs/Layout/ColumnMajor.lean -->
+
+# Column-major multi-axis arrays
+
+```lean
+import Mathlib.Logic.Equiv.Fin.Basic
+import Mathlib.Algebra.BigOperators.Fin
+import Mathlib.Data.List.Rotate
+import Mathlib.Tactic.Ring
+```
+
+Julia stores an `Array{T,N}` as one flat vector in **column-major** order: the first axis varies
+fastest. This module models that storage exactly, with no floating point and values in an
+arbitrary type.
+
+* A shape is a list of axis sizes `ns = [n₁, …, n_N]` (`size(table)`); `MIdx ns` is the type
+  of in-bounds multi-indices, one `Fin nₖ` per axis (0-based), and `ns.prod` is `length(table)`.
+* `lin idx = i₁ + n₁ * (i₂ + n₂ * (i₃ + …))` is the 0-based linear position. `lin_eq_sum_stride`
+  gives the stride form `∑ₖ iₖ * ∏_{j<k} n_j`, and `juliaLinearIndex_coords` shows that the
+  1-based fold `_linear_index` of `FiniteKernels.jl` (`src/kernels.jl`) computes `lin idx + 1`.
+* `toFlat ns : MIdx ns ≃ Fin ns.prod` has value `lin` (`toFlat_val`): **the linear index is a
+  bijection between multi-indices and flat positions**. `Tensor α ns := Fin ns.prod → α` is a
+  flat table, and `Tensor.equivFun` identifies flat tables with functions of the multi-index.
+* `MIdx.append` concatenates multi-indices (`(y..., x...)`), and
+  `lin (append y x) = lin y + ns.prod * lin x` (`lin_append`): the flat table of shape
+  `ns ++ ms` is a column-major `ns.prod × ms.prod` matrix (`reshape`).
+* `MIdx.next` is the column-major odometer: `lin (next idx) = (lin idx + 1) % ns.prod`.
+
+The labels of `FiniteAxis` are not modelled: an index is a label position (`label_index` minus
+one). The statements are about index arithmetic, not about Julia execution.
+
+```lean
+namespace FiniteKernelsProofs.Layout
+
+/-- In-bounds multi-indices of a shape, one 0-based coordinate per axis, first axis first. -/
+def MIdx : List ℕ → Type
+  | [] => Unit
+  | n :: ns => Fin n × MIdx ns
+
+namespace MIdx
+
+/-- The empty multi-index of the zero-dimensional shape. -/
+def nil : MIdx [] := ()
+
+/-- Prepend a coordinate on a new first axis. -/
+def cons {n : ℕ} {ns : List ℕ} (i : Fin n) (r : MIdx ns) : MIdx (n :: ns) := (i, r)
+
+/-- The coordinate of the first axis. -/
+def head {n : ℕ} {ns : List ℕ} (idx : MIdx (n :: ns)) : Fin n := Prod.fst idx
+
+/-- The coordinates of the remaining axes. -/
+def tail {n : ℕ} {ns : List ℕ} (idx : MIdx (n :: ns)) : MIdx ns := Prod.snd idx
+
+@[simp] theorem head_cons {n : ℕ} {ns : List ℕ} (i : Fin n) (r : MIdx ns) :
+    head (cons i r) = i := rfl
+
+@[simp] theorem tail_cons {n : ℕ} {ns : List ℕ} (i : Fin n) (r : MIdx ns) :
+    tail (cons i r) = r := rfl
+
+@[simp] theorem cons_head_tail {n : ℕ} {ns : List ℕ} (idx : MIdx (n :: ns)) :
+    cons (head idx) (tail idx) = idx := rfl
+
+theorem ext_nil (a b : MIdx []) : a = b := rfl
+
+theorem ext_cons {n : ℕ} {ns : List ℕ} {a b : MIdx (n :: ns)} (h1 : head a = head b)
+    (h2 : tail a = tail b) : a = b := Prod.ext h1 h2
+
+instance instDecidableEq : (ns : List ℕ) → DecidableEq (MIdx ns)
+  | [] => inferInstanceAs (DecidableEq Unit)
+  | n :: ns => @instDecidableEqProd (Fin n) (MIdx ns) _ (instDecidableEq ns)
+
+/-- The coordinate list `(i₁, …, i_N)` (0-based), as Julia's `Tuple(CartesianIndex) .- 1`. -/
+def coords : {ns : List ℕ} → MIdx ns → List ℕ
+  | [], _ => []
+  | _ :: _, idx => (head idx : ℕ) :: coords (tail idx)
+
+@[simp] theorem coords_nil (idx : MIdx []) : coords idx = [] := rfl
+
+@[simp] theorem coords_cons {n : ℕ} {ns : List ℕ} (i : Fin n) (r : MIdx ns) :
+    coords (cons i r) = (i : ℕ) :: coords r := rfl
+
+theorem length_coords : {ns : List ℕ} → (idx : MIdx ns) → (coords idx).length = ns.length
+  | [], _ => rfl
+  | _ :: _, idx => by simp [coords, length_coords (tail idx)]
+
+/-- A multi-index is determined by its coordinate list. -/
+theorem coords_injective : {ns : List ℕ} → Function.Injective (@coords ns)
+  | [], a, b, _ => ext_nil a b
+  | _ :: _, a, b, h => by
+    simp only [coords, List.cons.injEq] at h
+    exact ext_cons (Fin.ext h.1) (coords_injective h.2)
+
+/-- Concatenation `(y..., x...)` of multi-indices. -/
+def append : {ns ms : List ℕ} → MIdx ns → MIdx ms → MIdx (ns ++ ms)
+  | [], _, _, x => x
+  | _ :: _, _, y, x => cons (head y) (append (tail y) x)
+
+/-- The prefix of a multi-index on `ns ++ ms`. -/
+def fst : {ns ms : List ℕ} → MIdx (ns ++ ms) → MIdx ns
+  | [], _, _ => ()
+  | _ :: _, _, z => cons (head z) (fst (ns := _) (tail z))
+
+/-- The suffix of a multi-index on `ns ++ ms`. -/
+def snd : {ns ms : List ℕ} → MIdx (ns ++ ms) → MIdx ms
+  | [], _, z => z
+  | _ :: _, _, z => snd (ns := _) (tail z)
+
+theorem fst_append : {ns ms : List ℕ} → (y : MIdx ns) → (x : MIdx ms) → fst (append y x) = y
+  | [], _, _, _ => rfl
+  | _ :: _, _, y, x => by
+    show cons (head y) (fst (append (tail y) x)) = y
+    rw [fst_append]; rfl
+
+theorem snd_append : {ns ms : List ℕ} → (y : MIdx ns) → (x : MIdx ms) → snd (append y x) = x
+  | [], _, _, _ => rfl
+  | _ :: _, _, y, x => snd_append (tail y) x
+
+theorem append_fst_snd : {ns ms : List ℕ} → (z : MIdx (ns ++ ms)) → append (fst z) (snd z) = z
+  | [], _, _ => rfl
+  | _ :: ns, ms, z => by
+    show cons (head z) (append (fst (ns := ns) (ms := ms) (tail z)) (snd (tail z))) = z
+    rw [append_fst_snd]; rfl
+
+/-- Multi-indices of `ns ++ ms` are pairs of multi-indices. -/
+def appendEquiv (ns ms : List ℕ) : MIdx ns × MIdx ms ≃ MIdx (ns ++ ms) where
+  toFun p := append p.1 p.2
+  invFun z := (fst z, snd z)
+  left_inv p := by simp [fst_append, snd_append]
+  right_inv z := append_fst_snd z
+
+theorem coords_append : {ns ms : List ℕ} → (y : MIdx ns) → (x : MIdx ms) →
+    coords (append y x) = coords y ++ coords x
+  | [], _, _, _ => rfl
+  | _ :: _, _, y, x => by
+    show (head y : ℕ) :: coords (append (tail y) x) = ((head y : ℕ) :: coords (tail y)) ++ coords x
+    rw [coords_append]; rfl
+```
+
+### The linear index
+
+```lean
+/-- The 0-based column-major position: `i₁ + n₁ * (i₂ + n₂ * (…))`. -/
+def lin : {ns : List ℕ} → MIdx ns → ℕ
+  | [], _ => 0
+  | n :: _, idx => (head idx : ℕ) + n * lin (tail idx)
+
+@[simp] theorem lin_nil (idx : MIdx []) : lin idx = 0 := rfl
+
+@[simp] theorem lin_cons {n : ℕ} {ns : List ℕ} (i : Fin n) (r : MIdx ns) :
+    lin (cons i r) = i + n * lin r := rfl
+
+theorem lin_lt : {ns : List ℕ} → (idx : MIdx ns) → lin idx < ns.prod
+  | [], _ => by simp [lin]
+  | n :: _, idx => by
+    have h1 := lin_lt (tail idx)
+    have h2 := (head idx).isLt
+    simp only [lin, List.prod_cons]
+    calc (head idx : ℕ) + n * lin (tail idx) < n + n * lin (tail idx) := by omega
+      _ = n * (lin (tail idx) + 1) := by ring
+      _ ≤ n * _ := Nat.mul_le_mul_left _ h1
+
+/-- The column-major stride of axis `k`: the product of the sizes of the axes before it. -/
+def stride (ns : List ℕ) (k : ℕ) : ℕ := (ns.take k).prod
+
+/-- **Stride form of the linear index**: `lin idx = ∑ₖ iₖ * stride k`, with
+`stride k = ∏_{j<k} n_j` (the first axis has stride one). -/
+theorem lin_eq_sum_stride : {ns : List ℕ} → (idx : MIdx ns) →
+    lin idx = ∑ k ∈ Finset.range ns.length, (coords idx).getD k 0 * stride ns k
+  | [], _ => by simp [lin]
+  | n :: ns, idx => by
+    rw [show idx = cons (head idx) (tail idx) from rfl, List.length_cons, Finset.sum_range_succ',
+      lin_cons, coords_cons, lin_eq_sum_stride (tail idx), Finset.mul_sum]
+    simp only [List.getD_cons_succ, List.getD_cons_zero, stride, List.take_succ_cons,
+      List.prod_cons, List.take_zero, List.prod_nil, mul_one]
+    rw [add_comm]
+    congr 1
+    exact Finset.sum_congr rfl fun k _ => by ring
+
+/-- The 1-based fold of `_linear_index(dims, idx)` in `FiniteKernels.jl`:
+`lin = 1; stride = 1; for (d, i) in zip(dims, idx); lin += (i - 1) * stride; stride *= d; end`. -/
+def juliaLinearIndex (dims idx : List ℕ) : ℕ :=
+  ((dims.zip idx).foldl (fun acc p => (acc.1 + (p.2 - 1) * acc.2, acc.2 * p.1)) (1, 1)).1
+
+theorem foldl_linear : {ns : List ℕ} → (idx : MIdx ns) → (a s : ℕ) →
+    (ns.zip ((coords idx).map (· + 1))).foldl
+        (fun acc p => (acc.1 + (p.2 - 1) * acc.2, acc.2 * p.1)) (a, s) =
+      (a + s * lin idx, s * ns.prod)
+  | [], _, a, s => by simp [lin]
+  | n :: ns, idx, a, s => by
+    rw [show idx = cons (head idx) (tail idx) from rfl]
+    simp only [coords_cons, List.map_cons, List.zip_cons_cons, List.foldl_cons,
+      Nat.add_sub_cancel, lin_cons, List.prod_cons]
+    rw [foldl_linear (tail idx)]
+    ext <;> simp only <;> ring
+
+/-- **Julia's `_linear_index` is the column-major position**, shifted to 1-based. -/
+theorem juliaLinearIndex_coords {ns : List ℕ} (idx : MIdx ns) :
+    juliaLinearIndex ns ((coords idx).map (· + 1)) = lin idx + 1 := by
+  simp [juliaLinearIndex, foldl_linear, add_comm]
+```
+
+### The bijection with flat positions
+
+```lean
+/-- Multi-indices of a shape are in bijection with the flat positions `Fin ns.prod`. -/
+def toFlat : (ns : List ℕ) → MIdx ns ≃ Fin ns.prod
+  | [] =>
+    { toFun := fun _ => ⟨0, by simp⟩
+      invFun := fun _ => ()
+      left_inv := fun _ => rfl
+      right_inv := fun p => Fin.ext (by
+        have h : (p : ℕ) < 1 := p.isLt
+        show 0 = (p : ℕ)
+        omega) }
+  | n :: ns =>
+    ((Equiv.prodCongr (Equiv.refl (Fin n)) (toFlat ns)).trans (Equiv.prodComm _ _)).trans
+      (finProdFinEquiv.trans (finCongr (by simp [Nat.mul_comm])))
+
+/-- **The flat position of a multi-index is its column-major linear index.** -/
+@[simp] theorem toFlat_val : {ns : List ℕ} → (idx : MIdx ns) → (toFlat ns idx : ℕ) = lin idx
+  | [], _ => rfl
+  | n :: ns, idx => by
+    have h := toFlat_val (tail idx)
+    simp only [toFlat]
+    rw [lin]
+    exact congrArg _ (congrArg _ h)
+
+theorem lin_injective {ns : List ℕ} : Function.Injective (@lin ns) := by
+  intro a b h
+  apply (toFlat ns).injective
+  exact Fin.ext (by simpa using h)
+
+theorem lin_surjective {ns : List ℕ} (p : ℕ) (hp : p < ns.prod) : ∃ idx : MIdx ns, lin idx = p :=
+  ⟨(toFlat ns).symm ⟨p, hp⟩, by rw [← toFlat_val, Equiv.apply_symm_apply]⟩
+
+/-- **The column-major linear index is a bijection** from multi-indices onto the flat
+positions `Fin ns.prod` (`Fin (prod(size(table)))`). -/
+theorem linearIndex_bijective (ns : List ℕ) :
+    Function.Bijective (fun idx : MIdx ns => (⟨lin idx, lin_lt idx⟩ : Fin ns.prod)) := by
+  have h : (fun idx : MIdx ns => (⟨lin idx, lin_lt idx⟩ : Fin ns.prod)) = toFlat ns :=
+    funext fun idx => Fin.ext (toFlat_val idx).symm
+  rw [h]
+  exact (toFlat ns).bijective
+
+instance instFintype (ns : List ℕ) : Fintype (MIdx ns) := Fintype.ofEquiv _ (toFlat ns).symm
+
+theorem card (ns : List ℕ) : Fintype.card (MIdx ns) = ns.prod := by
+  rw [Fintype.card_congr (toFlat ns), Fintype.card_fin]
+
+/-- **Concatenated multi-indices**: the flat table of shape `ns ++ ms` is the column-major
+`ns.prod × ms.prod` matrix whose entry `[lin y, lin x]` sits at `lin (y..., x...)`. -/
+theorem lin_append : {ns ms : List ℕ} → (y : MIdx ns) → (x : MIdx ms) →
+    lin (append y x) = lin y + ns.prod * lin x
+  | [], _, _, _ => by simp [append]
+  | n :: ns, _, y, x => by
+    show (head y : ℕ) + n * lin (append (tail y) x) = (head y : ℕ) + n * lin (tail y) +
+      (n * ns.prod) * lin x
+    rw [lin_append]
+    ring
+```
+
+### The column-major odometer
+
+```lean
+/-- The next multi-index in column-major order, wrapping to all zeros after the last. -/
+def next : {ns : List ℕ} → MIdx ns → MIdx ns
+  | [], _ => ()
+  | n :: _, idx =>
+    if h : (head idx : ℕ) + 1 < n then cons ⟨head idx + 1, h⟩ (tail idx)
+    else cons ⟨0, lt_of_le_of_lt (Nat.zero_le _) (head idx).isLt⟩ (next (tail idx))
+
+theorem lin_next : {ns : List ℕ} → (idx : MIdx ns) → lin (next idx) = (lin idx + 1) % ns.prod
+  | [], _ => by simp [lin]
+  | n :: ns, idx => by
+    have hi := (head idx).isLt
+    have hr := lin_lt (tail idx)
+    by_cases h : (head idx : ℕ) + 1 < n
+    · have hlt : (head idx : ℕ) + n * lin (tail idx) + 1 < n * ns.prod :=
+        calc (head idx : ℕ) + n * lin (tail idx) + 1 < n + n * lin (tail idx) := by omega
+          _ = n * (lin (tail idx) + 1) := by ring
+          _ ≤ n * ns.prod := Nat.mul_le_mul_left _ hr
+      have hn : next idx = cons ⟨head idx + 1, h⟩ (tail idx) := dif_pos h
+      rw [hn]
+      show ((head idx : ℕ) + 1) + n * lin (tail idx) =
+        ((head idx : ℕ) + n * lin (tail idx) + 1) % (n * ns.prod)
+      rw [Nat.mod_eq_of_lt hlt]
+      ring
+    · have he : (head idx : ℕ) + 1 = n := by omega
+      have hn : next idx = cons ⟨0, by omega⟩ (next (tail idx)) := dif_neg h
+      have hs : (head idx : ℕ) + n * lin (tail idx) + 1 = n * (lin (tail idx) + 1) :=
+        calc (head idx : ℕ) + n * lin (tail idx) + 1 = ((head idx : ℕ) + 1) + n * lin (tail idx) :=
+              by ring
+          _ = n + n * lin (tail idx) := by rw [he]
+          _ = n * (lin (tail idx) + 1) := by ring
+      rw [hn]
+      show 0 + n * lin (next (tail idx)) =
+        ((head idx : ℕ) + n * lin (tail idx) + 1) % (n * ns.prod)
+      rw [lin_next (tail idx), zero_add, hs, Nat.mul_mod_mul_left]
+
+/-- Stepping the odometer `p` times from position zero reaches flat position `p`. -/
+theorem lin_iterate_next {ns : List ℕ} (z : MIdx ns) (hz : lin z = 0) (p : ℕ) :
+    lin (next^[p] z) = p % ns.prod := by
+  induction p with
+  | zero =>
+    rw [Function.iterate_zero, id_eq, hz, Nat.zero_mod]
+  | succ p ih =>
+    rw [Function.iterate_succ_apply', lin_next, ih, Nat.mod_add_mod]
+
+end MIdx
+```
+
+## Flat tables
+
+```lean
+/-- A flat table of shape `ns`: `length(table) = ns.prod` values in column-major order
+(`vec(table)`). -/
+def Tensor (α : Type) (ns : List ℕ) : Type := Fin ns.prod → α
+
+namespace Tensor
+
+variable {α : Type} {ns : List ℕ}
+
+/-- `table[i₁, …, i_N]`: the value stored at the column-major position of the multi-index. -/
+def get (A : Tensor α ns) (idx : MIdx ns) : α := A (MIdx.toFlat ns idx)
+
+/-- The flat table whose entry at every multi-index is `f idx`. -/
+def ofFun (f : MIdx ns → α) : Tensor α ns := fun p => f ((MIdx.toFlat ns).symm p)
+
+@[simp] theorem get_ofFun (f : MIdx ns → α) (idx : MIdx ns) : get (ofFun f) idx = f idx := by
+  simp [get, ofFun]
+
+@[simp] theorem ofFun_get (A : Tensor α ns) : ofFun (get A) = A := by
+  funext p
+  simp [get, ofFun]
+
+theorem ext_get {A B : Tensor α ns} (h : ∀ idx, get A idx = get B idx) : A = B := by
+  rw [← ofFun_get A, ← ofFun_get B]
+  exact congrArg ofFun (funext h)
+
+/-- Flat column-major tables are exactly functions of the multi-index. -/
+def equivFun (α : Type) (ns : List ℕ) : Tensor α ns ≃ (MIdx ns → α) where
+  toFun := get
+  invFun := ofFun
+  left_inv := ofFun_get
+  right_inv f := funext (get_ofFun f)
+
+/-- Reading the flat position whose 1-based index is Julia's `_linear_index` fold is `get`. -/
+theorem get_eq_juliaLinearIndex (A : Tensor α ns) (idx : MIdx ns) (p : Fin ns.prod)
+    (hp : (p : ℕ) + 1 = MIdx.juliaLinearIndex ns ((MIdx.coords idx).map (· + 1))) :
+    get A idx = A p := by
+  unfold get
+  congr 1
+  apply Fin.ext
+  rw [MIdx.toFlat_val]
+  rw [MIdx.juliaLinearIndex_coords] at hp
+  omega
+
+end Tensor
+
+end FiniteKernelsProofs.Layout
+```
+
+
+<!-- FiniteKernelsProofs/Layout/KernelLayout.lean -->
+
+# The outputs-first kernel layout and the `(parents..., child)` CPT layout
+
+```lean
+import FiniteKernelsProofs.Layout.ColumnMajor
+import FiniteKernelsProofs.Finite.Kernel
+```
+
+`FiniteKernel.table` stores a kernel `dom → codom` **outputs first**:
+`size(table) == (size(codom)..., size(dom)...)` and `table[y..., x...] = P(y | x)` (ADR 0002).
+User CPTs are `(parents..., child)`, normalised over the last axis, and `cpt` is the only
+conversion: `permutedims(table, (n + 1, 1, …, n))` one way, `permutedims(table, (2, …, n + 1, 1))`
+the other.
+
+* `KernelTable α cs ds := Tensor α (cs ++ ds)`; `toKernel T x y = table[y..., x...]` is a
+  function of the input first, the convention of `Finite.Kernel` (for `α = ℝ` it *is* a
+  `Finite.Kernel (MIdx ds) (MIdx cs)`), and `kernelEquiv` shows flat outputs-first tables and
+  kernels are the same data.
+* `kernelMatrix_toFlat`: the flat table read as the column-major
+  `length(codom) × length(dom)` matrix (`kernel_matrix = reshape(table, …)`) has entry
+  `P(y | x)` at row `lin y`, column `lin x`.
+* `probability_linear`: `probability(k, y, x)` reads `_linear_index(size(table), (iy..., ix...))`,
+  which is `lin (y..., x...) + 1`.
+* `cptToKernel` / `kernelToCpt` model the two `permutedims` calls. They are mutually inverse
+  (`cptEquiv`), so the permutation of flat storage positions `cptPerm` is a bijection, and every
+  entry is preserved: `toKernel_cptToKernel` says that `P(child = i | parents = x)` read from the
+  kernel is the CPT entry `table[x..., i]`. `cptToKernel_permutedims` and
+  `kernelToCpt_permutedims` show that they satisfy Julia's `permutedims(A, perm)` contract
+  `B[I] = A[J]` whenever `J[perm[k]] = I[k]`, for exactly the tuples `(n + 1, 1, …, n)` and
+  `(2, …, n + 1, 1)` used in `src/kernels.jl`.
+* `normalised_cptToKernel_iff`: the kernel is normalised iff every CPT row sums to one over the
+  last (child) axis.
+
+This links layouts and index arithmetic. It does not execute Julia, and the values are exact
+(any type; `ℝ` for normalisation), not IEEE floating point.
+
+```lean
+namespace FiniteKernelsProofs.Layout
+
+open MIdx
+
+variable {α : Type}
+```
+
+## Outputs-first kernel tables
+
+```lean
+/-- `FiniteKernel.table` for codomain shape `cs` and domain shape `ds`: outputs first. -/
+abbrev KernelTable (α : Type) (cs ds : List ℕ) : Type := Tensor α (cs ++ ds)
+
+namespace KernelTable
+
+variable {cs ds : List ℕ}
+
+/-- `table[y..., x...]`. -/
+def entry (T : KernelTable α cs ds) (y : MIdx cs) (x : MIdx ds) : α := Tensor.get T (append y x)
+
+/-- The kernel stored by an outputs-first table, input first: `toKernel T x y = P(y | x)`. -/
+def toKernel (T : KernelTable α cs ds) : MIdx ds → MIdx cs → α := fun x y => T.entry y x
+
+/-- The outputs-first table of a kernel. -/
+def ofKernel (k : MIdx ds → MIdx cs → α) : KernelTable α cs ds :=
+  Tensor.ofFun fun z => k (snd z) (fst z)
+
+@[simp] theorem toKernel_ofKernel (k : MIdx ds → MIdx cs → α) : toKernel (ofKernel k) = k := by
+  funext x y
+  simp [toKernel, ofKernel, entry, fst_append, snd_append]
+
+@[simp] theorem ofKernel_toKernel (T : KernelTable α cs ds) : ofKernel (toKernel T) = T := by
+  apply Tensor.ext_get
+  intro z
+  simp [toKernel, ofKernel, entry, append_fst_snd]
+
+/-- Flat outputs-first tables and kernels (input first) are the same data. -/
+def kernelEquiv (α : Type) (cs ds : List ℕ) :
+    KernelTable α cs ds ≃ (MIdx ds → MIdx cs → α) where
+  toFun := toKernel
+  invFun := ofKernel
+  left_inv := ofKernel_toKernel
+  right_inv := toKernel_ofKernel
+
+/-- For real entries the stored kernel is a kernel of the finite model `Finite.Kernel`. -/
+def toFiniteKernel (T : KernelTable ℝ cs ds) : Finite.Kernel (MIdx ds) (MIdx cs) := toKernel T
+
+theorem prod_append (cs ds : List ℕ) : (cs ++ ds).prod = cs.prod * ds.prod := List.prod_append
+
+/-- `kernel_matrix(k) = reshape(table, length(codom), length(dom))`, read column-major. -/
+def kernelMatrix (T : KernelTable α cs ds) (r : Fin cs.prod) (c : Fin ds.prod) : α :=
+  T ⟨r + cs.prod * c, by
+    rw [prod_append]
+    have hr := r.isLt
+    have hc := c.isLt
+    calc (r : ℕ) + cs.prod * c < cs.prod + cs.prod * c := by omega
+      _ = cs.prod * (c + 1) := by ring
+      _ ≤ cs.prod * ds.prod := Nat.mul_le_mul_left _ hc⟩
+
+/-- **`kernel_matrix` has `P(y | x)` at row `lin y`, column `lin x`.** -/
+theorem kernelMatrix_toFlat (T : KernelTable α cs ds) (y : MIdx cs) (x : MIdx ds) :
+    kernelMatrix T (toFlat cs y) (toFlat ds x) = T.entry y x := by
+  unfold kernelMatrix entry Tensor.get
+  congr 1
+  apply Fin.ext
+  simp [lin_append]
+
+/-- **`probability(k, y, x)` reads the entry `table[y..., x...]`**: Julia's 1-based
+`_linear_index(size(table), (Tuple(iy)..., Tuple(ix)...))` is `lin (y..., x...) + 1`. -/
+theorem probability_linear (y : MIdx cs) (x : MIdx ds) :
+    juliaLinearIndex (cs ++ ds) ((coords y ++ coords x).map (· + 1)) =
+      lin (append y x) + 1 := by
+  rw [← coords_append, juliaLinearIndex_coords]
+
+end KernelTable
+```
+
+## The `(parents..., child)` CPT layout and `cpt`
+
+```lean
+/-- A user CPT: shape `(parents..., child)`. -/
+abbrev CptTable (α : Type) (ps : List ℕ) (c : ℕ) : Type := Tensor α (ps ++ [c])
+
+/-- The multi-index of a single child axis. -/
+def childIdx {c : ℕ} (i : Fin c) : MIdx [c] := cons i nil
+
+@[simp] theorem head_childIdx {c : ℕ} (i : Fin c) : head (childIdx i) = i := rfl
+
+theorem childIdx_head {c : ℕ} (y : MIdx [c]) : childIdx (head y) = y := rfl
+
+namespace CptTable
+
+variable {ps : List ℕ} {c : ℕ}
+
+/-- `table[x..., i]`: the probability of child state `i` given parent states `x`. -/
+def entry (A : CptTable α ps c) (x : MIdx ps) (i : Fin c) : α :=
+  Tensor.get A (append x (childIdx i))
+
+end CptTable
+
+/-- `cpt(parents, child, table)`: `permutedims(table, (n + 1, 1, …, n))`, child axis first. -/
+def cptToKernel {ps : List ℕ} {c : ℕ} (A : CptTable α ps c) : KernelTable α [c] ps :=
+  Tensor.ofFun fun z => Tensor.get A (append (snd (ns := [c]) z) (fst (ns := [c]) z))
+
+/-- `cpt(k)`: `permutedims(table, (2, …, n + 1, 1))`, back to parents first. -/
+def kernelToCpt {ps : List ℕ} {c : ℕ} (T : KernelTable α [c] ps) : CptTable α ps c :=
+  Tensor.ofFun fun w => Tensor.get T (append (snd (ns := ps) w) (fst (ns := ps) w))
+
+theorem get_cptToKernel {ps : List ℕ} {c : ℕ} (A : CptTable α ps c) (y : MIdx [c])
+    (x : MIdx ps) : Tensor.get (cptToKernel A) (append y x) = Tensor.get A (append x y) := by
+  simp [cptToKernel, fst_append, snd_append]
+
+theorem get_kernelToCpt {ps : List ℕ} {c : ℕ} (T : KernelTable α [c] ps) (x : MIdx ps)
+    (y : MIdx [c]) : Tensor.get (kernelToCpt T) (append x y) = Tensor.get T (append y x) := by
+  simp [kernelToCpt, fst_append, snd_append]
+
+/-- **`cpt` preserves every entry**: the kernel built from a CPT gives
+`P(child = i | parents = x) = table[x..., i]`. -/
+theorem toKernel_cptToKernel {ps : List ℕ} {c : ℕ} (A : CptTable α ps c) (x : MIdx ps)
+    (i : Fin c) : KernelTable.toKernel (cptToKernel A) x (childIdx i) = A.entry x i :=
+  get_cptToKernel A (childIdx i) x
+
+theorem entry_kernelToCpt {ps : List ℕ} {c : ℕ} (T : KernelTable α [c] ps) (x : MIdx ps)
+    (i : Fin c) : (kernelToCpt T).entry x i = KernelTable.toKernel T x (childIdx i) :=
+  get_kernelToCpt T x (childIdx i)
+
+@[simp] theorem kernelToCpt_cptToKernel {ps : List ℕ} {c : ℕ} (A : CptTable α ps c) :
+    kernelToCpt (cptToKernel A) = A := by
+  apply Tensor.ext_get
+  intro w
+  rw [← append_fst_snd w, get_kernelToCpt, get_cptToKernel]
+
+@[simp] theorem cptToKernel_kernelToCpt {ps : List ℕ} {c : ℕ} (T : KernelTable α [c] ps) :
+    cptToKernel (kernelToCpt T) = T := by
+  apply Tensor.ext_get
+  intro z
+  rw [← append_fst_snd (ns := [c]) z, get_cptToKernel, get_kernelToCpt]
+
+/-- The two `cpt` conversions are mutually inverse. -/
+def cptEquiv (α : Type) (ps : List ℕ) (c : ℕ) : CptTable α ps c ≃ KernelTable α [c] ps where
+  toFun := cptToKernel
+  invFun := kernelToCpt
+  left_inv := kernelToCpt_cptToKernel
+  right_inv := cptToKernel_kernelToCpt
+
+/-- The permutation of flat storage positions that `cpt` performs. -/
+def cptPerm (ps : List ℕ) (c : ℕ) : Fin (ps ++ [c]).prod ≃ Fin ([c] ++ ps).prod :=
+  (toFlat (ps ++ [c])).symm.trans <| (appendEquiv ps [c]).symm.trans <|
+    (Equiv.prodComm _ _).trans <| (appendEquiv [c] ps).trans (toFlat ([c] ++ ps))
+
+/-- **`cpt` moves storage by a bijection of positions and copies every value**:
+the kernel table at position `q` is the CPT value at position `cptPerm.symm q`. -/
+theorem cptToKernel_apply {ps : List ℕ} {c : ℕ} (A : CptTable α ps c)
+    (q : Fin ([c] ++ ps).prod) : cptToKernel A q = A ((cptPerm ps c).symm q) := by
+  rfl
+```
+
+## Julia's `permutedims` contract
+
+```lean
+/-- `B = permutedims(A, perm)` (0-based `perm`): `size(B, k) = size(A, perm[k])` and
+`B[I] = A[J]` whenever `J[perm[k]] = I[k]` for every axis `k`. -/
+def PermutedimsSpec {ns ms : List ℕ} (perm : ℕ → ℕ) (A : Tensor α ns) (B : Tensor α ms) : Prop :=
+  (∀ k < ms.length, ms[k]? = ns[perm k]?) ∧
+    ∀ (I : MIdx ms) (J : MIdx ns),
+      (∀ k < ms.length, (coords J)[perm k]? = (coords I)[k]?) → Tensor.get B I = Tensor.get A J
+
+/-- The tuple `(n + 1, 1, …, n)` of `cpt(parents, child, table)`, 0-based. -/
+def cptPermTuple (n : ℕ) (k : ℕ) : ℕ := if k = 0 then n else k - 1
+
+/-- The tuple `(2, …, n + 1, 1)` of `cpt(k)`, 0-based. -/
+def uncptPermTuple (n : ℕ) (k : ℕ) : ℕ := if k < n then k + 1 else 0
+
+theorem coords_eq_of_perm {ps : List ℕ} {c : ℕ} (x : MIdx ps) (i : Fin c) (J : MIdx (ps ++ [c]))
+    (h : ∀ k < ps.length + 1,
+      (coords J)[cptPermTuple ps.length k]? = ((i : ℕ) :: coords x)[k]?) :
+    J = append x (childIdx i) := by
+  apply coords_injective
+  rw [coords_append]
+  apply List.ext_getElem?
+  intro k
+  have hJ := length_coords J
+  have hx := length_coords x
+  simp only [List.length_append, List.length_cons, List.length_nil] at hJ
+  rcases lt_trichotomy k ps.length with hk | hk | hk
+  · have := h (k + 1) (by omega)
+    simp only [cptPermTuple, Nat.add_one_ne_zero, if_false, Nat.add_sub_cancel,
+      List.getElem?_cons_succ] at this
+    have hk' : k < (coords x).length := by omega
+    rw [this, List.getElem?_append_left hk']
+  · subst hk
+    have := h 0 (by omega)
+    simp only [cptPermTuple, if_true, List.getElem?_cons_zero] at this
+    have hle : (coords x).length ≤ ps.length := le_of_eq hx
+    rw [this, List.getElem?_append_right hle, hx, Nat.sub_self]
+    all_goals rfl
+  · have h1 : (coords J).length ≤ k := by omega
+    have h2 : (coords x ++ coords (childIdx i)).length ≤ k := by
+      rw [List.length_append, hx]
+      show ps.length + 1 ≤ k
+      omega
+    rw [List.getElem?_eq_none h1, List.getElem?_eq_none h2]
+
+/-- **`cpt(parents, child, table)` is `permutedims(table, (n + 1, 1, …, n))`.** -/
+theorem cptToKernel_permutedims {ps : List ℕ} {c : ℕ} (A : CptTable α ps c) :
+    PermutedimsSpec (cptPermTuple ps.length) A (cptToKernel A) := by
+  constructor
+  · intro k hk
+    simp only [List.length_append, List.length_cons, List.length_nil] at hk
+    rcases Nat.eq_zero_or_pos k with rfl | hk0
+    · simp [cptPermTuple]
+    · obtain ⟨j, rfl⟩ : ∃ j, k = j + 1 := ⟨k - 1, by omega⟩
+      have hj : j < ps.length := by omega
+      simp only [cptPermTuple, Nat.add_one_ne_zero, if_false, Nat.add_sub_cancel]
+      rw [List.getElem?_append_left (l₂ := [c]) hj]
+      simp
+  · intro I J hIJ
+    have hI : I = append (fst (ns := [c]) I) (snd (ns := [c]) I) := (append_fst_snd I).symm
+    have hc : coords I = (head (fst (ns := [c]) I) : ℕ) :: coords (snd (ns := [c]) I) := by
+      conv_lhs => rw [hI]
+      rw [coords_append]
+      all_goals rfl
+    have hJ : J = append (snd (ns := [c]) I) (childIdx (head (fst (ns := [c]) I))) := by
+      apply coords_eq_of_perm
+      intro k hk
+      have hk' : k < ([c] ++ ps).length := by simp; omega
+      rw [hIJ k hk', hc]
+    rw [hJ]
+    conv_lhs => rw [hI]
+    rw [get_cptToKernel, childIdx_head]
+
+/-- **`cpt(k)` is `permutedims(table, (2, …, n + 1, 1))`.** -/
+theorem kernelToCpt_permutedims {ps : List ℕ} {c : ℕ} (T : KernelTable α [c] ps) :
+    PermutedimsSpec (uncptPermTuple ps.length) T (kernelToCpt T) := by
+  constructor
+  · intro k hk
+    simp only [List.length_append, List.length_cons, List.length_nil] at hk
+    by_cases hkn : k < ps.length
+    · simp only [uncptPermTuple, hkn, if_true]
+      rw [List.getElem?_append_left (l₂ := [c]) hkn]
+      simp
+    · have : k = ps.length := by omega
+      subst this
+      simp [uncptPermTuple]
+  · intro I J hIJ
+    have hI : I = append (fst (ns := ps) I) (snd (ns := ps) I) := (append_fst_snd I).symm
+    have hcI : coords I = coords (fst (ns := ps) (ms := [c]) I) ++
+        [(head (snd (ns := ps) (ms := [c]) I) : ℕ)] := by
+      conv_lhs => rw [hI]
+      rw [coords_append]
+      all_goals rfl
+    have hy : coords (snd (ns := ps) (ms := [c]) I) = [(head (snd (ns := ps) (ms := [c]) I) : ℕ)] :=
+      rfl
+    have hx := length_coords (fst (ns := ps) (ms := [c]) I)
+    have hJ : J = append (snd (ns := ps) (ms := [c]) I) (fst (ns := ps) (ms := [c]) I) := by
+      apply coords_injective
+      rw [coords_append]
+      apply List.ext_getElem?
+      intro k
+      have hlen := length_coords J
+      simp only [List.length_append, List.length_cons, List.length_nil] at hlen
+      rcases Nat.eq_zero_or_pos k with rfl | hk0
+      · have := hIJ ps.length (by simp)
+        simp only [uncptPermTuple, lt_irrefl, if_false] at this
+        have hle : (coords (fst (ns := ps) (ms := [c]) I)).length ≤ ps.length := le_of_eq hx
+        rw [this, hcI, List.getElem?_append_right hle, hx, Nat.sub_self, hy]
+        all_goals simp
+      · obtain ⟨j, rfl⟩ : ∃ j, k = j + 1 := ⟨k - 1, by omega⟩
+        by_cases hj : j < ps.length
+        · have := hIJ j (by simp; omega)
+          simp only [uncptPermTuple, hj, if_true] at this
+          have hj' : j < (coords (fst (ns := ps) (ms := [c]) I)).length := by omega
+          rw [this, hcI, List.getElem?_append_left hj', hy]
+          all_goals simp
+        · have h1 : (coords J).length ≤ j + 1 := by omega
+          have h2 : (coords (snd (ns := ps) (ms := [c]) I) ++
+              coords (fst (ns := ps) (ms := [c]) I)).length ≤ j + 1 := by
+            rw [List.length_append, hx]
+            show 1 + ps.length ≤ j + 1
+            omega
+          rw [List.getElem?_eq_none h1, List.getElem?_eq_none h2]
+    rw [hJ]
+    conv_lhs => rw [hI]
+    rw [get_kernelToCpt]
+```
+
+## Normalisation
+
+```lean
+/-- **A CPT normalised over its last axis gives a normalised kernel, and conversely.** -/
+theorem normalised_cptToKernel_iff {ps : List ℕ} {c : ℕ} (A : CptTable ℝ ps c) :
+    Finite.Kernel.Normalised (KernelTable.toFiniteKernel (cptToKernel A)) ↔
+      ∀ x, ∑ i : Fin c, A.entry x i = 1 := by
+  have hsum : ∀ x, ∑ y : MIdx [c], KernelTable.toFiniteKernel (cptToKernel A) x y =
+      ∑ i : Fin c, A.entry x i := by
+    intro x
+    let e : MIdx [c] ≃ Fin c :=
+      { toFun := head, invFun := childIdx, left_inv := childIdx_head, right_inv := fun _ => rfl }
+    refine Fintype.sum_equiv e _ (fun i => A.entry x i) fun y => ?_
+    exact toKernel_cptToKernel A x (head y)
+  simp only [Finite.Kernel.Normalised, hsum]
+
+end FiniteKernelsProofs.Layout
+```
+
+
+<!-- FiniteKernelsProofs/Layout/Product.lean -->
+
+# The stride-based product of two factors
+
+```lean
+import FiniteKernelsProofs.Layout.ColumnMajor
+```
+
+`multiply(f, g)` in `BayesianNetworkInference.jl` (`src/factors.jl`) builds the product over the
+union of the two scopes without permuting either table:
+
+* `_union_axes` lists the result axes (`f`'s variables, then `g`'s new ones); a factor's axis
+  `j` is the result axis `pa[j]`, so its table has shape `pa.map ns.get`;
+* `_result_strides(h, vars)` gives each result axis the column-major stride that `h`'s own table
+  has for that variable, and `0` if `h` lacks it (`resultStride`, `resultStride_eq`);
+* `_product_into!` walks the result's joint states in column-major order with an odometer,
+  updating the two table offsets incrementally (`bump`, `productLoop`), and stores
+  `out[i] = a[ai] * b[bi]`.
+
+Here a factor over result positions `pa` is, semantically, the function
+`I ↦ F.get (project I pa)` of the joint multi-index (it reads the coordinates of its own axes),
+and the **named product** is the pointwise product of those functions (`namedProduct`).
+
+* `offset_eq_lin`: for a factor without repeated variables (`pa.Nodup`, which the `Factor`
+  constructor enforces), the result-stride offset `∑ₖ Iₖ * resultStride k` is the position of
+  the projected multi-index in the factor's own table.
+* `slotOffset_eq_lin`: the per-slot strides of `BayesianNetworks`' `_Factor` (one stride per
+  table axis, repeats allowed) compute the same position with no `Nodup` hypothesis, and
+  `resultStride_repeated` shows that the result-stride form is wrong for repeated axes.
+* `bump_spec` and `productLoop_eq`: the odometer step moves to `MIdx.next` and keeps each offset
+  equal to its stride sum.
+* `productInto_getElem?` / `productInto_eq`: **the list written by the loop is the flat
+  column-major table of the named product**, including the zero-dimensional case (one entry).
+
+Values live in any type with a multiplication (a semiring in practice); this is exact index
+arithmetic, not a statement about Julia execution or IEEE rounding.
+
+```lean
+namespace FiniteKernelsProofs.Layout
+
+open MIdx
+```
+
+## Coordinates and projections
+
+```lean
+/-- The coordinate of axis `k`, as an element of that axis. -/
+def MIdx.coord : {ns : List ℕ} → MIdx ns → (k : Fin ns.length) → Fin (ns.get k)
+  | [], _, k => k.elim0
+  | _ :: _, idx, ⟨0, _⟩ => head idx
+  | _ :: _, idx, ⟨k + 1, h⟩ => coord (tail idx) ⟨k, Nat.lt_of_succ_lt_succ h⟩
+
+/-- All coordinates of a multi-index at linear position zero are zero. -/
+theorem MIdx.coord_eq_zero_of_lin : {ns : List ℕ} → (z : MIdx ns) → lin z = 0 →
+    ∀ k, (coord z k : ℕ) = 0
+  | [], _, _, k => k.elim0
+  | n :: _, z, h, ⟨0, _⟩ => by
+    have h' : (head z : ℕ) + n * lin (tail z) = 0 := h
+    show (head z : ℕ) = 0
+    omega
+  | n :: _, z, h, ⟨k + 1, hk⟩ => by
+    have h' : (head z : ℕ) + n * lin (tail z) = 0 := h
+    have hn : 0 < n := lt_of_le_of_lt (Nat.zero_le _) (head z).isLt
+    have ht : lin (tail z) = 0 := by
+      rcases Nat.mul_eq_zero.1 (by omega : n * lin (tail z) = 0) with h'' | h''
+      · omega
+      · exact h''
+    exact coord_eq_zero_of_lin (tail z) ht ⟨k, Nat.lt_of_succ_lt_succ hk⟩
+
+/-- The multi-index of a factor whose axis `j` is the result axis `pa[j]`: `I[pa]`. -/
+def project {ns : List ℕ} (I : MIdx ns) : (pa : List (Fin ns.length)) → MIdx (pa.map ns.get)
+  | [] => nil
+  | p :: pa => cons (coord I p) (project I pa)
+
+variable {α : Type} {ns : List ℕ}
+
+/-- The named (functional) product: at every joint multi-index, the product of the two
+factors' entries at their projected multi-indices. -/
+def namedProduct [Mul α] (pa pb : List (Fin ns.length)) (F : Tensor α (pa.map ns.get))
+    (G : Tensor α (pb.map ns.get)) : Tensor α ns :=
+  Tensor.ofFun fun I => F.get (project I pa) * G.get (project I pb)
+```
+
+## Strides
+
+```lean
+/-- `_result_strides(h, vars)`, recursively: the first slot has stride one and every later slot
+the size of the earlier ones times its stride in the tail. -/
+def resultStride (ns : List ℕ) : List (Fin ns.length) → Fin ns.length → ℕ
+  | [], _ => 0
+  | p :: pa, i => if i = p then 1 else ns.get p * resultStride ns pa i
+
+/-- `resultStride` is literally `_result_strides`: the column-major stride of the **first**
+slot of the factor that carries result axis `i`, and `0` when there is none. -/
+theorem resultStride_eq (pa : List (Fin ns.length)) (i : Fin ns.length) :
+    resultStride ns pa i = if i ∈ pa then ((pa.map ns.get).take (pa.idxOf i)).prod else 0 := by
+  induction pa with
+  | nil => simp [resultStride]
+  | cons p pa ih =>
+    by_cases h : i = p
+    · subst h
+      simp [resultStride]
+    · have hne : p ≠ i := Ne.symm h
+      simp only [resultStride, h, if_false, ih, List.mem_cons, false_or, List.map_cons,
+        List.idxOf_cons_ne _ hne, Nat.succ_eq_add_one, List.take_succ_cons, List.prod_cons]
+      split_ifs <;> simp
+
+theorem resultStride_of_notMem (pa : List (Fin ns.length)) (i : Fin ns.length) (h : i ∉ pa) :
+    resultStride ns pa i = 0 := by
+  rw [resultStride_eq, if_neg h]
+
+/-- The table offset `∑ₖ Iₖ * resultStride k` of the result multi-index `I`. -/
+def offset (pa : List (Fin ns.length)) (I : MIdx ns) : ℕ :=
+  ∑ k : Fin ns.length, (coord I k : ℕ) * resultStride ns pa k
+
+/-- **Result strides locate the projected entry** when the factor has no repeated variable. -/
+theorem offset_eq_lin (pa : List (Fin ns.length)) (hpa : pa.Nodup) (I : MIdx ns) :
+    offset pa I = lin (project I pa) := by
+  induction pa with
+  | nil => simp [offset, resultStride, project]
+  | cons p pa ih =>
+    obtain ⟨hp, hpa⟩ := List.nodup_cons.1 hpa
+    have hterm : ∀ k : Fin ns.length, (coord I k : ℕ) * resultStride ns (p :: pa) k =
+        (if k = p then (coord I k : ℕ) else 0) +
+          ns.get p * ((coord I k : ℕ) * resultStride ns pa k) := by
+      intro k
+      by_cases hk : k = p
+      · rw [hk]
+        simp [resultStride, resultStride_of_notMem pa p hp]
+      · simp only [resultStride, hk, if_false, zero_add]
+        ring
+    unfold offset
+    simp only [hterm, Finset.sum_add_distrib, Finset.sum_ite_eq', Finset.mem_univ, if_true,
+      ← Finset.mul_sum]
+    rw [show (∑ k : Fin ns.length, (coord I k : ℕ) * resultStride ns pa k) = offset pa I from rfl,
+      ih hpa]
+    rfl
+
+theorem coords_project (I : MIdx ns) (pa : List (Fin ns.length)) :
+    coords (project I pa) = pa.map fun p => (coord I p : ℕ) := by
+  induction pa with
+  | nil => rfl
+  | cons p pa ih =>
+    show (coord I p : ℕ) :: coords (project I pa) = _
+    rw [ih]
+    rfl
+
+/-- **Per-slot strides** (`BayesianNetworks`' `_Factor`: `idx += strides[j] * (ci[axes[j]] - 1)`)
+locate the projected entry for every slot list, repeated result axes included. -/
+theorem slotOffset_eq_lin (pa : List (Fin ns.length)) (I : MIdx ns) :
+    lin (project I pa) = ∑ j ∈ Finset.range (pa.map ns.get).length,
+      (coords (project I pa)).getD j 0 * stride (pa.map ns.get) j :=
+  lin_eq_sum_stride _
+
+/-- With a repeated axis the result-stride form reads the wrong entry: for one result axis of
+size two and a factor carrying it twice (the diagonal of a `2 × 2` table), the result-stride
+offset of state `1` is `1`, but the diagonal entry `(1, 1)` sits at position `3`. -/
+theorem resultStride_repeated :
+    offset (ns := [2]) [⟨0, by decide⟩, ⟨0, by decide⟩] (cons ⟨1, by decide⟩ nil) = 1 ∧
+      lin (project (ns := [2]) (cons ⟨1, by decide⟩ nil) [⟨0, by decide⟩, ⟨0, by decide⟩]) = 3 := by
+  decide
+```
+
+## The odometer loop of `_product_into!`
+
+```lean
+/-- `∑ₖ posₖ * sₖ` over two lists. -/
+def dot (pos : List ℕ) (s : List ℤ) : ℤ := (List.zipWith (fun p t => (p : ℤ) * t) pos s).sum
+
+/-- One pass of the inner `for k in 1:d` loop, for one table offset:
+`pos[k] += 1; off += s[k]; pos[k] < sz[k] && break; pos[k] = 0; off -= s[k] * sz[k]`. -/
+def bump : List ℕ → List ℕ → List ℤ → ℤ → List ℕ × ℤ
+  | n :: sz, p :: pos, t :: s, off =>
+    if p + 1 < n then ((p + 1) :: pos, off + t)
+    else
+      let r := bump sz pos s (off + t - t * n)
+      (0 :: r.1, r.2)
+  | _, pos, _, off => (pos, off)
+
+theorem dot_cons (p : ℕ) (pos : List ℕ) (t : ℤ) (s : List ℤ) :
+    dot (p :: pos) (t :: s) = p * t + dot pos s := by
+  simp [dot]
+
+/-- **The odometer step**: from the coordinates of `idx` and an offset equal to its stride sum
+(plus any constant), `bump` reaches the coordinates of `next idx` and its stride sum. -/
+theorem bump_spec : {sz : List ℕ} → (idx : MIdx sz) → (s : List ℤ) → s.length = sz.length →
+    (off : ℤ) → bump sz (coords idx) s (off + dot (coords idx) s) =
+      (coords (next idx), off + dot (coords (next idx)) s)
+  | [], idx, s, _, off => by
+    simp [bump, coords]
+  | n :: sz, idx, [], hs, _ => by simp at hs
+  | n :: sz, idx, t :: s, hs, off => by
+    have hs' : s.length = sz.length := by simpa using hs
+    have hi := (head idx).isLt
+    rw [show idx = cons (head idx) (tail idx) from rfl]
+    simp only [coords_cons, dot_cons, bump]
+    by_cases h : (head idx : ℕ) + 1 < n
+    · rw [if_pos h]
+      simp only [next, head_cons, tail_cons, h, dite_true, coords_cons, dot_cons,
+        Prod.mk.injEq, true_and]
+      push_cast
+      ring
+    · rw [if_neg h]
+      have he : (head idx : ℕ) + 1 = n := by omega
+      have hoff : off + ((head idx : ℕ) * t + dot (coords (tail idx)) s) + t - t * n =
+          off + dot (coords (tail idx)) s := by
+        have hn : (n : ℤ) = ((head idx : ℕ) : ℤ) + 1 := by exact_mod_cast he.symm
+        rw [hn]
+        ring
+      simp only [hoff, bump_spec (tail idx) s hs' off, next, head_cons, tail_cons, h,
+        dite_false, coords_cons, dot_cons, Nat.cast_zero, zero_mul, zero_add]
+
+/-- The loop of `_product_into!`: write `a[ai] * b[bi]`, then advance the shared odometer and
+both offsets. -/
+def productLoop [Mul α] (sz : List ℕ) (as bs : List ℤ) (a b : ℕ → α) :
+    ℕ → List ℕ → ℤ → ℤ → List α
+  | 0, _, _, _ => []
+  | k + 1, pos, ai, bi =>
+    (a ai.toNat * b bi.toNat) ::
+      productLoop sz as bs a b k (bump sz pos as ai).1 (bump sz pos as ai).2 (bump sz pos bs bi).2
+
+theorem productLoop_eq [Mul α] (sz : List ℕ) (as bs : List ℤ) (has : as.length = sz.length)
+    (hbs : bs.length = sz.length) (a b : ℕ → α) (k : ℕ) (idx : MIdx sz) :
+    productLoop sz as bs a b k (coords idx) (dot (coords idx) as) (dot (coords idx) bs) =
+      (List.range k).map fun j =>
+        a (dot (coords (next^[j] idx)) as).toNat * b (dot (coords (next^[j] idx)) bs).toNat := by
+  induction k generalizing idx with
+  | zero => rfl
+  | succ k ih =>
+    have ha := bump_spec idx as has 0
+    have hb := bump_spec idx bs hbs 0
+    simp only [zero_add] at ha hb
+    simp only [productLoop, ha, hb]
+    rw [ih, List.range_succ_eq_map, List.map_cons, List.map_map]
+    rfl
+
+/-- The coordinates of the all-zero multi-index. -/
+theorem coords_of_lin_eq_zero : {sz : List ℕ} → (z : MIdx sz) → lin z = 0 →
+    coords z = List.replicate sz.length 0
+  | [], _, _ => rfl
+  | n :: sz, z, h => by
+    have hn : 0 < n := lt_of_le_of_lt (Nat.zero_le _) (head z).isLt
+    rw [show z = cons (head z) (tail z) from rfl] at h ⊢
+    simp only [lin_cons] at h
+    have h0 : (head z : ℕ) = 0 := by omega
+    have ht : lin (tail z) = 0 := by
+      rcases Nat.mul_eq_zero.1 (by omega : n * lin (tail z) = 0) with h' | h'
+      · omega
+      · exact h'
+    rw [coords_cons, h0, coords_of_lin_eq_zero (tail z) ht]
+    rfl
+
+/-- `_product_into!(out, sz, a, as, b, bs)` with `pos = zeros`, `ai = bi = 1` (0-based here). -/
+def productInto [Mul α] (sz : List ℕ) (as bs : List ℤ) (a b : ℕ → α) : List α :=
+  productLoop sz as bs a b sz.prod (List.replicate sz.length 0) 0 0
+
+theorem dot_ofFn {sz : List ℕ} (I : MIdx sz) (f : Fin sz.length → ℕ) :
+    dot (coords I) (List.ofFn fun k => (f k : ℤ)) = ((∑ k, (coord I k : ℕ) * f k : ℕ) : ℤ) := by
+  induction sz with
+  | nil => simp [dot, coords]
+  | cons n sz ih =>
+    rw [show I = cons (head I) (tail I) from rfl, List.ofFn_succ, coords_cons, dot_cons]
+    show _ = ((∑ k : Fin (sz.length + 1), (coord (cons (head I) (tail I)) k : ℕ) * f k : ℕ) : ℤ)
+    rw [Fin.sum_univ_succ, ih (tail I) (fun k => f k.succ)]
+    push_cast
+    rfl
+
+/-- The result strides of a factor as the integer vector the loop uses. -/
+def strides (ns : List ℕ) (pa : List (Fin ns.length)) : List ℤ :=
+  List.ofFn fun k => (resultStride ns pa k : ℤ)
+
+theorem dot_strides (pa : List (Fin ns.length)) (hpa : pa.Nodup) (I : MIdx ns) :
+    dot (coords I) (strides ns pa) = lin (project I pa) := by
+  rw [strides, dot_ofFn, show (∑ k, (coord I k : ℕ) * resultStride ns pa k) = offset pa I
+    from rfl, offset_eq_lin pa hpa]
+
+/-- The projection of the all-zero multi-index has linear position zero. -/
+theorem lin_project_zero (z : MIdx ns) (hz : lin z = 0) (pa : List (Fin ns.length)) :
+    lin (project z pa) = 0 := by
+  induction pa with
+  | nil => rfl
+  | cons p pa ih =>
+    show (coord z p : ℕ) + ns.get p * lin (project z pa) = 0
+    rw [coord_eq_zero_of_lin z hz p, ih, mul_zero, add_zero]
+
+theorem get_eq_lin (A : Tensor α ns) (idx : MIdx ns) : A.get idx = A ⟨lin idx, lin_lt idx⟩ := by
+  unfold Tensor.get
+  congr 1
+  exact Fin.ext (toFlat_val idx)
+
+theorem length_productLoop [Mul α] (sz : List ℕ) (as bs : List ℤ) (a b : ℕ → α) (k : ℕ)
+    (pos : List ℕ) (ai bi : ℤ) : (productLoop sz as bs a b k pos ai bi).length = k := by
+  induction k generalizing pos ai bi with
+  | zero => rfl
+  | succ k ih => simp [productLoop, ih]
+
+/-- **The stride-based product computes the named product, entry by entry.** For factors
+without repeated variables whose flat tables `a`, `b` store `F`, `G` column-major, the entry
+that `_product_into!` writes at the column-major position of the joint multi-index `I` is
+`F[I[pa]] * G[I[pb]]`. -/
+theorem productInto_getElem? [Mul α] (pa pb : List (Fin ns.length)) (hpa : pa.Nodup)
+    (hpb : pb.Nodup) (F : Tensor α (pa.map ns.get)) (G : Tensor α (pb.map ns.get))
+    (a b : ℕ → α) (ha : ∀ J, a (lin J) = F.get J) (hb : ∀ J, b (lin J) = G.get J)
+    (I : MIdx ns) :
+    (productInto ns (strides ns pa) (strides ns pb) a b)[lin I]? =
+      some ((namedProduct pa pb F G).get I) := by
+  have hpos : 0 < ns.prod := lt_of_le_of_lt (Nat.zero_le _) (lin_lt I)
+  obtain ⟨z, hz⟩ := lin_surjective (ns := ns) 0 hpos
+  have hlen : ∀ pa : List (Fin ns.length), (strides ns pa).length = ns.length := by
+    intro pa; simp [strides]
+  have hstart : productInto ns (strides ns pa) (strides ns pb) a b =
+      productLoop ns (strides ns pa) (strides ns pb) a b ns.prod (coords z)
+        (dot (coords z) (strides ns pa)) (dot (coords z) (strides ns pb)) := by
+    rw [dot_strides pa hpa, dot_strides pb hpb, lin_project_zero z hz, lin_project_zero z hz,
+      coords_of_lin_eq_zero z hz]
+    all_goals rfl
+  rw [hstart, productLoop_eq _ _ _ (hlen pa) (hlen pb), List.getElem?_map,
+    List.getElem?_range (lin_lt I), Option.map_some]
+  refine congrArg some ?_
+  show a (dot (coords (next^[lin I] z)) (strides ns pa)).toNat *
+      b (dot (coords (next^[lin I] z)) (strides ns pb)).toNat = _
+  have hiter : next^[lin I] z = I := by
+    apply lin_injective
+    rw [lin_iterate_next z hz, Nat.mod_eq_of_lt (lin_lt I)]
+  rw [hiter, dot_strides pa hpa, dot_strides pb hpb, Int.toNat_natCast, Int.toNat_natCast, ha, hb,
+    namedProduct, Tensor.get_ofFun]
+
+/-- **The loop output is the flat column-major table of the named product.** -/
+theorem productInto_eq [Mul α] (pa pb : List (Fin ns.length)) (hpa : pa.Nodup)
+    (hpb : pb.Nodup) (F : Tensor α (pa.map ns.get)) (G : Tensor α (pb.map ns.get))
+    (a b : ℕ → α) (ha : ∀ J, a (lin J) = F.get J) (hb : ∀ J, b (lin J) = G.get J) :
+    productInto ns (strides ns pa) (strides ns pb) a b =
+      List.ofFn (namedProduct pa pb F G) := by
+  apply List.ext_getElem?
+  intro p
+  by_cases hp : p < ns.prod
+  · obtain ⟨I, rfl⟩ := lin_surjective (ns := ns) p hp
+    rw [productInto_getElem? pa pb hpa hpb F G a b ha hb I, List.getElem?_ofFn,
+      dif_pos (lin_lt I), get_eq_lin]
+  · have h1 : (productInto ns (strides ns pa) (strides ns pb) a b).length ≤ p := by
+      rw [productInto, length_productLoop]
+      omega
+    have h2 : (List.ofFn (namedProduct pa pb F G)).length ≤ p := by
+      rw [List.length_ofFn]
+      omega
+    rw [List.getElem?_eq_none h1, List.getElem?_eq_none h2]
+
+end FiniteKernelsProofs.Layout
+```
+
+
 <!-- FiniteKernelsProofs/Roadmap.lean -->
 
 # Roadmap
@@ -1067,7 +2125,16 @@ The two former holes, `MonoidalCategory FinStoch` and `MarkovCategory FinStoch`,
 proved in `Theory/FinStoch.lean`, imported by the default target and included in the axiom
 audit. This compatibility module has no unproved declarations.
 
-Remaining work is a representation bridge to Julia's named axes and floating-point arrays.
+The layout half of the representation bridge to Julia's arrays is now in the default target:
+`Layout/ColumnMajor.lean` (column-major storage; the linear index is a bijection onto
+`Fin (∏ sizes)` and equals `_linear_index`), `Layout/KernelLayout.lean` (outputs-first kernel
+tables, `kernel_matrix`, `probability`, and the two `cpt` `permutedims` as mutually inverse,
+entry-preserving conversions) and `Layout/Product.lean` (the result strides and odometer of
+`BayesianNetworkInference.multiply` compute the named product for factors without repeated
+variables). Labels (`label_index`) are modelled only as positions.
+
+Remaining: floating-point values and IEEE arithmetic, and any proof that the Julia code executes
+these definitions (the correspondence is read off the source). `_broadcastable` is not modelled.
 The Mathlib instance by itself does not establish that bridge, and no open-network category
 or semantic functor is constructed here.
 

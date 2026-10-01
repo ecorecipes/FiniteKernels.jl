@@ -35,6 +35,18 @@ into `compose`, `otimes`, `id`, `mcopy`, `delete` and `braid` — lives in
   monoidal, symmetric and Markov category instances on finite stochastic kernels. The former Roadmap
   holes are discharged; copying remains natural exactly for the deterministic normalised kernels. These are exact
   finite-model results, not a verification of Julia's floating-point arrays.
+- A Lean model of the array layout (`proofs/FiniteKernelsProofs/Layout/`): tables stored as flat vectors in
+  column-major (first-axis-fastest) order. `linearIndex_bijective` proves that the column-major linear index is a
+  bijection from multi-indices onto the flat positions `Fin (∏ sizes)`, and `juliaLinearIndex_coords` that
+  Julia's 1-based `_linear_index` fold computes it plus one. `cptToKernel_permutedims`, `cptEquiv` and
+  `toKernel_cptToKernel` prove that `cpt`'s `permutedims(table, (n + 1, 1, …, n))` is a bijection between the
+  `(parents..., child)` and outputs-first layouts that preserves every entry: the kernel's
+  `P(child = i | parents = x)` is the CPT entry `table[x..., i]`. For the factor product of
+  `BayesianNetworkInference.jl`, `offset_eq_lin` proves that `_result_strides` locate each factor's entry at the
+  projected multi-index when the factor has no repeated variable, and `productInto_getElem?` that the odometer
+  loop of `multiply` writes, at the column-major position of every joint multi-index, the product of the two
+  factors' entries at the projected multi-indices. This links layouts and index arithmetic with values in any
+  type; it does not execute Julia or model IEEE arithmetic.
 
 ## Installation
 
