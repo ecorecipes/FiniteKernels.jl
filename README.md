@@ -89,8 +89,12 @@ network IR. See `docs/adr/0002-axis-convention.md`.
 
 ## Vignettes
 
-Rendered vignettes live in [`vignettes/`](vignettes/) and are published in the
-[documentation](https://ecorecipes.github.io/FiniteKernels.jl/).
+| # | Vignette | Description |
+|---|---|---|
+| 1 | [Finite stochastic kernels](https://github.com/ecorecipes/FiniteKernels.jl/blob/main/vignettes/01_finite_kernels/01_finite_kernels.md) | State spaces, kernels and the axis convention; sequential and tensor composition; copy and discard |
+
+Each vignette is also published as a tutorial in the [documentation](https://ecorecipes.github.io/FiniteKernels.jl/);
+the sources are the `.qmd` files in [`vignettes/`](vignettes/).
 
 ## References
 
