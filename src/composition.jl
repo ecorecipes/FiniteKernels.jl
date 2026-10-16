@@ -41,8 +41,12 @@ function tensor_kernel(k::FiniteKernel{T}, l::FiniteKernel{S}) where {T,S}
     A = reshape(k.table, (ck..., ones_(length(cl))..., dk..., ones_(length(dl))...))
     B = reshape(l.table, (ones_(length(ck))..., cl..., ones_(length(dk))..., dl...))
     # The rank of the reshaped tables is runtime data; asserting the element type
-    # keeps it in the inferred return type (the rank cannot be).
-    table = (A .* B)::Array{promote_type(T, S)}
+    # keeps it in the inferred return type (the rank cannot be). Broadcasting into an
+    # allocated array keeps the result an array when both tables are zero-dimensional
+    # (two kernels `I → I`), where `A .* B` alone would be a scalar.
+    R = promote_type(T, S)
+    table = similar(A, R, Base.Broadcast.broadcast_shape(size(A), size(B)))::Array{R}
+    table .= A .* B
     return _kernel(tensor_space(k.dom, l.dom), tensor_space(k.codom, l.codom), table)
 end
 function tensor_kernel(k::FiniteKernel, l::FiniteKernel, m::FiniteKernel,

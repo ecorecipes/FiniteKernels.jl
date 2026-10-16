@@ -343,6 +343,12 @@
         @test tensor_kernel(p, q).table ≈ [0.25, 0.75] * [0.4, 0.6]'
         @test tensor_kernel(k, identity_kernel(I)) ≈ k &&
               tensor_kernel(identity_kernel(I), k) ≈ k
+        # Two scalars `I → I`: the product of the two numbers, still a rank-0 kernel.
+        s = FiniteKernel(I, I, fill(0.5); check=false)
+        t = FiniteKernel(I, I, fill(3.0); check=false)
+        @test tensor_kernel(s, t) isa FiniteKernel{Float64,0}
+        @test tensor_kernel(s, t).table[] == 1.5
+        @test tensor_kernel(identity_kernel(I), identity_kernel(I)) == identity_kernel(I)
     end
 
     @testset "marginal" begin
