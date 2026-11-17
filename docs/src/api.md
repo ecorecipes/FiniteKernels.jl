@@ -26,7 +26,7 @@ joint_states
 ```@docs
 FiniteKernel
 cpt
-state
+state(::FiniteSpace, ::AbstractArray{<:Real})
 point_mass
 uniform
 deterministic
@@ -48,7 +48,7 @@ registers exactly these functions as a Catlab `@instance` of
 `ThMarkovCategory`, which makes them available under the categorical names
 `compose`, `otimes`, `id`, `braid`, `mcopy` and `delete` (with the operators
 `⋅`, `⊗`, `σ`, `Δ`, `◊`); this package uses only the names below, so that it
-depends on nothing but `LinearAlgebra` and `Random`.
+depends on neither Catlab nor GATlab.
 
 ```@docs
 compose_kernel
@@ -59,6 +59,20 @@ discard_kernel
 swap_kernel
 marginal
 apply
+```
+
+## Markov chains and resilience
+
+An endokernel `X → X` is a Markov chain. The functions below are ResilienceCore.jl's
+(`using ResilienceCore`), with methods for a `FiniteKernel` (ADR 0029). This package
+exports no new names for them, and its [`state`](@ref) extends ResilienceCore's `state`,
+so loading both packages leaves no ambiguous name.
+
+```@docs
+ResilienceCore.linearise(::FiniteKernel)
+ResilienceCore.stationary_distribution(::FiniteKernel)
+ResilienceCore.resilience(::FiniteKernel)
+ResilienceCore.mixing_time(::FiniteKernel)
 ```
 
 ## Exceptions

@@ -6,10 +6,18 @@ authors = ["Simon Frost"]
 [deps]
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+ResilienceCore = "e31f93f6-99b1-4a70-b0c5-c402beffe4e1"
+StructuredPopulationCore = "33358fd2-7d60-4541-bded-caea801370e0"
+
+[sources]
+ResilienceCore = {url = "https://github.com/ecorecipes/ResilienceCore.jl"}
+StructuredPopulationCore = {url = "https://github.com/ecorecipes/ProjectionModels.jl"}
 
 [compat]
 LinearAlgebra = "1"
 Random = "1"
+ResilienceCore = "0.1"
+StructuredPopulationCore = "0.1.4"
 Test = "1"
 julia = "1.12"
 

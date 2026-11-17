@@ -1,6 +1,10 @@
 [deps]
 FiniteKernels = "2ee73795-50db-4096-9573-22982ed4949b"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+ResilienceCore = "e31f93f6-99b1-4a70-b0c5-c402beffe4e1"
+StructuredPopulationCore = "33358fd2-7d60-4541-bded-caea801370e0"
 
 [sources]
+ResilienceCore = {url = "https://github.com/ecorecipes/ResilienceCore.jl"}
+StructuredPopulationCore = {url = "https://github.com/ecorecipes/ProjectionModels.jl"}
 FiniteKernels = {path = ".."}
