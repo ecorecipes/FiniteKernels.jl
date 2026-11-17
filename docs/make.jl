@@ -3,6 +3,7 @@ ENV["GKSwstype"] = get(ENV, "GKSwstype", "100")
 using Documenter
 using DocumenterCitations
 using FiniteKernels
+using ResilienceCore  # for the ResilienceCore.<name>(::FiniteKernel) entries of api.md
 
 DocMeta.setdocmeta!(FiniteKernels, :DocTestSetup, :(using FiniteKernels);
                     recursive=true)

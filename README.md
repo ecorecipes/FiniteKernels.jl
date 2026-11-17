@@ -12,7 +12,8 @@ Part of the ecorecipes compositional Bayesian-network ecosystem:
 `InfluenceDiagrams.jl`, with `BayesianNetworkFormats.jl` (file formats) and
 `EcologicalBayesianNetworks.jl` (model zoo).
 
-This package depends on `LinearAlgebra` and `Random` and nothing else. The category-theory layer — the GATlab
+This package depends on `LinearAlgebra`, `Random` and [ResilienceCore.jl](https://github.com/ecorecipes/ResilienceCore.jl)
+(ADR 0029), and on no Catlab or GATlab. The category-theory layer — the GATlab
 theory `ThMarkovCategory`, its free symbolic model and the Catlab `@instance` that turns the functions below
 into `compose`, `otimes`, `id`, `mcopy`, `delete` and `braid` — lives in
 [`MarkovCategories.jl`](https://github.com/ecorecipes/MarkovCategories.jl), one level up.
@@ -29,6 +30,8 @@ into `compose`, `otimes`, `id`, `mcopy`, `delete` and `braid` — lives in
 - The wiring operations under their SPEC section 3.2 names: `compose_kernel`, `tensor_kernel`,
   `identity_kernel`, `copy_kernel`, `discard_kernel`, `swap_kernel`, plus `marginal`, `apply`,
   `kernel_matrix` and `probability`.
+- Markov chains: an endokernel `X → X` is a Markov chain, and ResilienceCore's `linearise`, `stationary_distribution`
+  (a labelled state), `resilience` (`-log |λ₂|`) and `mixing_time` accept one directly.
 - A test suite checking every Markov-category law numerically, including that discard is natural if and only if
   a kernel is normalised, and that "copy once" differs from "sample twice" unless the state is a point mass.
 - A Lean 4 / Mathlib development in [`proofs/`](proofs/) proving those laws and constructing concrete

@@ -13,14 +13,18 @@ CategoricalBayesianNetworks → MarkovCategories → FiniteKernels, and
 CategoricalBayesianNetworks → BayesianNetworks. Per ADR 0009 the model layer is free of
 Catlab, which is a dependency of exactly those two packages; in particular
 BayesianNetworks does **not** depend on MarkovCategories.
-This package depends on: nothing else in the ecosystem. It has no ecosystem siblings on its path:
-`Project.toml` has no `[sources]` section.
+This package depends on one ecosystem package, ResilienceCore.jl (ADR 0029), fetched by URL through
+`[sources]` together with its own dependency StructuredPopulationCore (Pkg does not follow a URL
+dependency's sources). It has no ecosystem siblings on its path.
 
 ## Invariants that must not be broken
 
 - **No Catlab and no GATlab, ever, in `[deps]`, `[extras]`, the docs or the vignette environment.** That is the
   point of the package (ADR 0001): the category-theory layer is `MarkovCategories.jl`, one level up. `Pkg.status`
-  in this project must show neither. Julia dependencies stay `LinearAlgebra` and `Random`.
+  in this project must show neither. Julia dependencies are `LinearAlgebra`, `Random` and ResilienceCore (with
+  StructuredPopulationCore), ADR 0029; ResilienceCore must stay free of Catlab and GATlab for this to hold.
+- `state` is `ResilienceCore.state` extended with this package's methods (ADR 0029), so that loading both
+  packages gives one name. Do not define a separate `state` function here.
 - The wiring operations are named `compose_kernel`, `tensor_kernel`, `tensor_space`, `identity_kernel`,
   `copy_kernel`, `discard_kernel`, `swap_kernel` (SPEC section 3.2). Never define or import `compose`, `otimes`,
   `id`, `mcopy`, `delete`, `braid`, `dom` or `codom` here; `MarkovCategories.jl` binds those to these functions
@@ -47,7 +51,10 @@ This package depends on: nothing else in the ecosystem. It has no ecosystem sibl
   `uniform`, `deterministic`, `random_kernel`, `kernel_matrix`, `probability`, `is_stochastic`.
 - `src/composition.jl`: `compose_kernel`, `tensor_kernel`, `identity_kernel`, `marginal`, `apply`.
 - `src/copy_discard.jl`: `copy_kernel`, `discard_kernel`, `swap_kernel`.
-- `src/show.jl`: printing. `test/test_{spaces,kernels,laws,errors,docstrings}.jl`: the suite, seeded RNGs only;
+- `src/show.jl`: printing.
+- `src/resilience.jl`: an endokernel `X → X` as a Markov chain: methods of ResilienceCore's `linearise` (to a
+  row-stochastic `MarkovKernel`, the transpose of `kernel_matrix`), `stationary_distribution` (a labelled state),
+  `resilience` and `mixing_time`; `SpaceMismatchError` when the domain and codomain differ (ADR 0029). `test/test_{spaces,kernels,laws,errors,resilience,docstrings}.jl`: the suite, seeded RNGs only;
   `test_errors.jl` checks that every exception type the package defines subtypes `FiniteKernelsError`.
 - `proofs/`: the Lean 4 / Mathlib library `FiniteKernelsProofs`, a finite model of the kernels and their laws.
   `Theory/FinStoch.lean` constructs the concrete monoidal, symmetric and Markov instances; the two former

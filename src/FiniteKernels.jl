@@ -14,9 +14,14 @@ probability table, and the wiring operations are
 (SPEC section 3.2). `MarkovCategories.jl` sits on top and registers exactly these
 functions as a Catlab `@instance` of its GATlab theory `ThMarkovCategory`, so
 that they become `compose`, `otimes`, `id`, `mcopy`, `delete` and `braid`; this
-package deliberately depends on nothing but `LinearAlgebra` and `Random`, so that
-downstream packages that only need numbers do not pay for the category-theory
-layer.
+package deliberately does not depend on Catlab or GATlab, so that downstream
+packages that only need numbers do not pay for the category-theory layer.
+
+An endokernel `X → X` is a Markov chain, and ResilienceCore.jl's metrics for Markov
+chains (`resilience`, `stationary_distribution`, `mixing_time`, and
+`linearise` to its `MarkovKernel`) accept one directly (ADR 0029). ResilienceCore is
+the one ecosystem dependency; it is light (`LinearAlgebra`, `Random` and
+StructuredPopulationCore).
 
 Axis convention (ADR 0002): a kernel `X → Y` stores its table with the **output
 axes first, then the input axes**, `size(table) == (size(Y)..., size(X)...)`, and
@@ -37,6 +42,10 @@ using LinearAlgebra: I
 using Random: AbstractRNG, default_rng
 
 import LinearAlgebra: normalize
+# `state` is ResilienceCore's function, extended here with the methods for distributions,
+# so that loading both packages gives one `state` rather than an ambiguous name (ADR 0029).
+import ResilienceCore: state
+using ResilienceCore: ResilienceCore, MarkovKernel
 
 # Spaces
 export FiniteAxis, FiniteSpace, factors, labels, axis_names, state_index, joint_states,
@@ -59,5 +68,6 @@ include("kernels.jl")
 include("composition.jl")
 include("copy_discard.jl")
 include("show.jl")
+include("resilience.jl")  # methods of ResilienceCore's functions (ADR 0029)
 
 end # module

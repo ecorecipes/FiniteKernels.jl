@@ -1,0 +1,199 @@
+# Markov chains and their resilience
+Simon Frost
+
+- [Overview](#overview)
+- [Horn’s forest succession](#horns-forest-succession)
+- [From a young forest to the stationary
+  one](#from-a-young-forest-to-the-stationary-one)
+- [How resilient is the composition?](#how-resilient-is-the-composition)
+- [Disturbance as a second kernel](#disturbance-as-a-second-kernel)
+- [Kernels that are not chains](#kernels-that-are-not-chains)
+
+## Overview
+
+A kernel from a space to itself, `X → X`, is a Markov chain: applying it
+again and again moves a distribution over `X` forward in time. How
+quickly that distribution settles is a form of resilience. After a
+disturbance, a chain that returns quickly to its stationary distribution
+is resilient; one that lingers is not.
+
+[ResilienceCore.jl](https://github.com/ecorecipes/ResilienceCore.jl)
+holds the resilience metrics of the ecorecipes packages, and its methods
+accept such a kernel directly (ADR 0029):
+
+| function | meaning |
+|----|----|
+| `linearise(k)` | the chain as a ResilienceCore `MarkovKernel` (row-stochastic) |
+| `stationary_distribution(k)` | the distribution the chain settles to, as a labelled state |
+| `resilience(k)` | `-log |λ₂|`, the asymptotic rate of approach per step |
+| `mixing_time(k; ε)` | the first step at which every start is within total variation `ε` |
+
+This vignette applies them to Horn’s model of forest succession.
+
+``` julia
+using FiniteKernels
+using ResilienceCore: linearise, stationary_distribution, resilience, mixing_time
+using Printf
+```
+
+## Horn’s forest succession
+
+Horn (1975, “Markovian properties of forest succession”, in Cody and
+Diamond, eds., *Ecology and Evolution of Communities*, pp. 196–211)
+treated a forest as a collection of sites, each held by one canopy tree.
+When the tree dies, a sapling growing beneath it takes its place. The
+chance that each species replaces each other species is estimated from
+the saplings found under trees of each species. One generation of the
+chain is one canopy replacement.
+
+The four-species table below is the summary for the Institute Woods in
+Princeton that textbooks and teaching material commonly reproduce: grey
+birch, blackgum, red maple and beech. **It has not been checked against
+Horn’s chapter for this vignette**, so treat the numbers as
+illustrative. Each row is the current occupant and each column the
+species that replaces it, so every row sums to one.
+
+``` julia
+tree = FiniteAxis(:tree, [:grey_birch, :blackgum, :red_maple, :beech])
+P = [0.05 0.36 0.50 0.09
+     0.01 0.57 0.25 0.17
+     0.00 0.14 0.55 0.31
+     0.00 0.01 0.03 0.96]
+succession = cpt([tree], tree, P)
+```
+
+    FiniteKernel{Float64}(tree{grey_birch,blackgum,red_maple,beech} → tree{grey_birch,blackgum,red_maple,beech})
+                  grey_birch  blackgum  red_maple  beech
+      grey_birch        0.05      0.01        0.0    0.0
+      blackgum          0.36      0.57       0.14   0.01
+      red_maple          0.5      0.25       0.55   0.03
+      beech             0.09      0.17       0.31   0.96
+
+`cpt` takes the table in the user-facing layout, parent (the current
+tree) first and child (its replacement) last. The kernel stores it
+outputs first (ADR 0002), and `linearise` transposes it back to the
+row-stochastic matrix ResilienceCore expects:
+
+``` julia
+linearise(succession).P ≈ P
+```
+
+    true
+
+## From a young forest to the stationary one
+
+Start from a stand of grey birch, the pioneer, and apply the chain one
+generation at a time:
+
+``` julia
+x = point_mass(FiniteSpace(tree), :grey_birch)
+println(rpad("generation", 12), join(rpad.(string.(labels(tree)), 12)))
+for g in 0:8
+    println(rpad(g, 12), join(rpad.([@sprintf("%.3f", probability(x, s)) for s in labels(tree)], 12)))
+    global x = apply(succession, x)
+end
+```
+
+    generation  grey_birch  blackgum    red_maple   beech       
+    0           1.000       0.000       0.000       0.000       
+    1           0.050       0.360       0.500       0.090       
+    2           0.006       0.294       0.393       0.307       
+    3           0.003       0.228       0.302       0.467       
+    4           0.002       0.178       0.239       0.581       
+    5           0.002       0.142       0.194       0.662       
+    6           0.002       0.115       0.163       0.720       
+    7           0.001       0.096       0.141       0.762       
+    8           0.001       0.083       0.125       0.791       
+
+The stationary distribution is a labelled state on the same space:
+
+``` julia
+climax = stationary_distribution(succession)
+for s in labels(tree)
+    @printf("%-11s %.3f\n", s, probability(climax, s))
+end
+```
+
+    grey_birch  0.001
+    blackgum    0.048
+    red_maple   0.085
+    beech       0.866
+
+Beech holds most sites at stationarity, but the earlier species persist
+at low frequencies, because a beech site is occasionally taken by
+another species.
+
+## How resilient is the composition?
+
+The second-largest eigenvalue modulus `|λ₂|` of the chain sets how
+quickly a distribution approaches the stationary one. `resilience`
+reports `-log |λ₂|` per generation, so a disturbance decays by a factor
+`e` in `1 / resilience` generations:
+
+``` julia
+r = resilience(succession)
+@printf("resilience %.3f per generation; |λ₂| = %.3f; e-folding %.1f generations\n",
+        r, exp(-r), 1 / r)
+for ε in (0.25, 0.05, 0.01)
+    @printf("mixing time to within total variation %.2f: %d generations\n", ε,
+            mixing_time(succession; ε))
+end
+```
+
+    resilience 0.334 per generation; |λ₂| = 0.716; e-folding 3.0 generations
+    mixing time to within total variation 0.25: 5 generations
+    mixing time to within total variation 0.05: 10 generations
+    mixing time to within total variation 0.01: 15 generations
+
+## Disturbance as a second kernel
+
+Disturbance is another kernel on the same space, and composing it with
+the succession kernel gives a new chain. Suppose that each generation a
+fraction `d` of sites is cleared and recolonised by grey birch, whatever
+stood there:
+
+``` julia
+function clearing(d)
+    T = [(1 - d) * (i == j) + d * (j == 1) for i in 1:4, j in 1:4]
+    return cpt([tree], tree, T)
+end
+println(rpad("d", 6), rpad("beech", 8), rpad("grey birch", 12), rpad("resilience", 12), "mixing (ε = 0.05)")
+for d in (0.0, 0.02, 0.05, 0.1, 0.2)
+    chain = compose_kernel(succession, clearing(d))
+    s = stationary_distribution(chain)
+    @printf("%-6.2f%-8.3f%-12.3f%-12.3f%d\n", d, probability(s, :beech),
+            probability(s, :grey_birch), resilience(chain), mixing_time(chain; ε=0.05))
+end
+```
+
+    d     beech   grey birch  resilience  mixing (ε = 0.05)
+    0.00  0.866   0.001       0.334       10
+    0.02  0.798   0.022       0.354       9
+    0.05  0.707   0.053       0.385       8
+    0.10  0.583   0.106       0.440       7
+    0.20  0.402   0.210       0.557       5
+
+The more frequent the clearing, the less beech the stationary forest
+holds. Clearing also pulls every site towards the same start, which
+speeds the approach to the new stationary distribution, so resilience in
+this sense rises with disturbance. It measures how quickly the
+composition settles, not whether the late-successional forest survives.
+
+## Kernels that are not chains
+
+A kernel between two different spaces has no dynamics: applying it once
+leaves the space it started on. Such a kernel raises a
+`SpaceMismatchError`. Compose it with a kernel back to the original
+space first.
+
+``` julia
+light = FiniteAxis(:light, [:sun, :shade])
+canopy_light = cpt([tree], light, [0.9 0.1; 0.6 0.4; 0.3 0.7; 0.1 0.9])
+try
+    resilience(canopy_light)
+catch e
+    showerror(stdout, e)
+end
+```
+
+    SpaceMismatchError in linearise: expected FiniteSpace(tree{grey_birch,blackgum,red_maple,beech}), got FiniteSpace(light{sun,shade})
