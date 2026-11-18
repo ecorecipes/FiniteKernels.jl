@@ -32,8 +32,8 @@ the operations that wire them together are exactly the operations of a
 | `identity_kernel(X)`   | do nothing                                  |
 
 This package names them without naming the category, and depends on
-nothing but `LinearAlgebra` and `Random`. `MarkovCategories.jl` states
-the same operations as a GATlab theory and registers them as a Catlab
+neither Catlab nor GATlab. `MarkovCategories.jl` states the same
+operations as a GATlab theory and registers them as a Catlab
 `@instance`, which is where they acquire the categorical names `compose`
 (`⋅`), `otimes` (`⊗`), `mcopy` (`Δ`), `delete` (`◊`), `braid` (`σ`) and
 `id`; its vignette covers that layer.
