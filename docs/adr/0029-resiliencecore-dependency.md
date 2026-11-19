@@ -45,6 +45,4 @@ The no-Catlab, no-GATlab invariant is unaffected: ResilienceCore depends on
 `LinearAlgebra`, `Random` and `StructuredPopulationCore` only. The dependency tree grows from
 two standard libraries to eleven packages. `Project.toml` now has a `[sources]` section, so
 installing the package needs Julia 1.11 or later (already required by ADR 0004). Downstream
-packages that load both this package and ResilienceCore see one `state` function. This record
-is a package copy; it must also be added to the workspace `docs/adr/`, from which
-`scripts/sync_adrs.jl` copies the records.
+packages that load both this package and ResilienceCore see one `state` function.
